@@ -35,9 +35,43 @@
 ### Current State
 - The workspace is fully populated and structured.
 - FastAPI backend scaffold is in place with health endpoints.
-- Ready for virtual environment activation and Git/GitHub setup.
 
-### Immediate Next Steps (for next turn / session)
-1. Verify user's virtual environment setup (`.venv`) and run test suite (`pytest`).
-2. Complete Git initialization and push to the user's dedicated GitHub repository.
-3. Start **Chunk 2**: Implement FastAPI screener endpoints (`/api/screener/results`, `/api/screener/run`, `/api/company/{ticker}`).
+---
+
+## Session 02 - Chunk 2: Backend API Core & Edgartools MCP Fix
+- **Date**: 2026-11-15
+- **Goal**: Resolve edgartools MCP server issue, build comprehensive README.md and repo "About", implement FastAPI endpoints for screener and company valuation, and write test suite.
+
+### Actions Completed
+1. **Edgartools MCP Resolution**:
+   - Diagnosed root cause of `AttributeError: 'Server' object has no attribute 'list_tools'` when running `agy /mcp`. `edgartools` was written against `mcp<2.0.0` while `mcp 2.3.0` introduced breaking changes.
+   - Installed `mcp>=1.2.0,<2.0.0` into `.venv` and updated `requirements.txt`.
+   - Verified `python -m edgar.ai --test` passes with 13 registered tools.
+   - Updated `.agents/mcp_config.json` to directly use `.venv/bin/python -m edgar.ai`.
+2. **Repository About & Documentation**:
+   - Created comprehensive [README.md](file:///Users/gabrielepicheo/Documents/Github/gp1981/Value_Investing_Alpha/README.md) with badges, architecture overview, quickstart instructions, and GitHub repo "About" metadata.
+3. **Pydantic Validation Schemas**:
+   - Implemented `src/api/schemas/screener.py` (`ScreenerRunRequest`, `ScreenerStockItem`, `ScreenerResultsResponse`).
+   - Implemented `src/api/schemas/company.py` (`MagicFormulaDetails`, `GreenwaldDetails`, `DCFDetails`, `SafetyDetails`, `CompanyDetailResponse`).
+4. **FastAPI Endpoints**:
+   - Implemented `src/api/routes/screener.py`:
+     - `GET /api/screener/results`: Fetches ranked companies with sorting, pagination, market cap boundaries, and SIC exclusions. Includes realistic demo data fallback.
+     - `POST /api/screener/run`: Executes live screening across target tickers.
+   - Implemented `src/api/routes/company.py`:
+     - `GET /api/company/{ticker}`: Comprehensive multi-model valuation breakdown (Magic Formula EY/ROC, Greenwald EPV/Reproduction Cost/Moat, DCF steady-state, Solvency traffic light).
+     - `GET /api/company/{ticker}/sec-facts`: SEC filing facts summary.
+   - Built dependency provider in `src/api/deps.py`.
+   - Mounted all routers in `src/api/main.py`.
+5. **Testing**:
+   - Added endpoint tests in `tests/test_api.py`.
+   - All **19 tests pass cleanly** (`pytest tests/`).
+
+### Current State
+- Backend API is completely implemented, verified with tests, and ready to serve the frontend.
+- Swagger API docs available at `http://localhost:8000/docs` when running `uvicorn src.api.main:app`.
+
+### Immediate Next Steps (for Chunk 3)
+1. Initialize React + Vite + TypeScript single-page application in `frontend/`.
+2. Configure Tailwind CSS with the `data-dense-design` theme (JetBrains Mono font, dark slate background, monospace numeric alignment, neon accent badges).
+3. Build the dense data table component consuming `GET /api/screener/results` with instant sorting and filtering.
+4. Build the company detail drawer / modal consuming `GET /api/company/{ticker}`.

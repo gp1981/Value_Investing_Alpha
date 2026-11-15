@@ -6,7 +6,7 @@ fundamental data (SEC Edgar), and market data (yfinance).
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.routes import health
+from src.api.routes import health, screener, company
 
 app = FastAPI(
     title="Value Investing Alpha API",
@@ -25,6 +25,8 @@ app.add_middleware(
 
 # Register routes
 app.include_router(health.router)
+app.include_router(screener.router)
+app.include_router(company.router)
 
 @app.get("/")
 def root():

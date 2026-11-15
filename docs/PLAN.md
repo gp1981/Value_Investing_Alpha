@@ -23,34 +23,39 @@ Chunk 5: Docker Containerization & Cloud Run Hosting      [PLANNED]
 ---
 
 ### Chunk 1: Foundation, Workspace & GitHub Setup (Completed / In Progress)
-- [x] Analyze `Value_Investing_Screener_SEC_Market_Data` and `WEB_APP_PROPOSALS.md`.
-- [x] Migrate core calculation models, SEC providers, market data sync, and tests to `Value_Investing_Alpha`.
-- [x] Import key skills from `antigravity-awesome-skills` (`data-dense-design`, `fastapi-pro`, `fastapi-router-py`, `git-workflow`).
-- [x] Create workspace customization configuration (`.agents/mcp_config.json`).
-- [x] Create `GEMINI.md` foundational instructions and operational guidelines.
-- [x] Configure `.env.example`, `.gitignore`, and updated `requirements.txt`.
-- [x] Scaffold initial FastAPI application structure (`src/api/`).
-- [x] Initialize local Git repository with baseline commit (`main`).
-- [x] Create and activate Python 3.13 virtual environment (`.venv`) and install all 107 dependencies.
-- [x] Verify unit test suite (14 passed, 6 skipped, 0 failures).
-- [ ] Connect remote GitHub repository (`gh auth login` & `gh repo create`).
-- [ ] Set `GITHUB_PERSONAL_ACCESS_TOKEN` in `.env` for GitHub MCP integration.
+
+- [X] Analyze `Value_Investing_Screener_SEC_Market_Data` and `WEB_APP_PROPOSALS.md`.
+- [X] Migrate core calculation models, SEC providers, market data sync, and tests to `Value_Investing_Alpha`.
+- [X] Import key skills from `antigravity-awesome-skills` (`data-dense-design`, `fastapi-pro`, `fastapi-router-py`, `git-workflow`).
+- [X] Create workspace customization configuration (`.agents/mcp_config.json`).
+- [X] Create `GEMINI.md` foundational instructions and operational guidelines.
+- [X] Configure `.env.example`, `.gitignore`, and updated `requirements.txt`.
+- [X] Scaffold initial FastAPI application structure (`src/api/`).
+- [X] Initialize local Git repository with baseline commit (`main`).
+- [X] Create and activate Python 3.13 virtual environment (`.venv`) and install all 107 dependencies.
+- [X] Verify unit test suite (14 passed, 6 skipped, 0 failures).
+- [X] Connect remote GitHub repository (`gh auth login` & `gh repo create`).
+- [X] Set `GITHUB_PERSONAL_ACCESS_TOKEN` in `.env` for GitHub MCP integration.
 
 ---
 
-### Chunk 2: Backend API Endpoints & Engine Wrapping
-- [ ] Build Pydantic schemas in `src/api/schemas/screener.py` for screener queries and results.
-- [ ] Implement `src/api/routes/screener.py`:
-  - `GET /api/screener/results`: Fetch cached or latest screened stocks.
+### Chunk 2: Backend API Endpoints & Engine Wrapping (Completed)
+
+- [x] Build Pydantic schemas in `src/api/schemas/screener.py` and `src/api/schemas/company.py` for screener queries and results.
+- [x] Implement `src/api/routes/screener.py`:
+  - `GET /api/screener/results`: Fetch cached or latest screened stocks with sort, limit, and SIC filtering.
   - `POST /api/screener/run`: Run screener with configurable filters (market cap min/max, sector, model weights).
-- [ ] Implement `src/api/routes/company.py`:
+- [x] Implement `src/api/routes/company.py`:
   - `GET /api/company/{ticker}`: Detailed financial facts, Magic Formula ranking, EPV vs Reproduction cost analysis, and DCF steady-state value.
-- [ ] Add asynchronous background task runner for batch enrichment.
-- [ ] Write API tests using `httpx` and `pytest`.
+  - `GET /api/company/{ticker}/sec-facts`: Direct SEC entity facts lookup.
+- [x] Establish typed dependency injection in `src/api/deps.py`.
+- [x] Mount modular routers in `src/api/main.py`.
+- [x] Write API tests using `fastapi.testclient.TestClient` and `pytest` (19 passing overall).
 
 ---
 
 ### Chunk 3: Frontend Terminal UI (React + Vite)
+
 - [ ] Initialize Vite + React + TypeScript in `frontend/`.
 - [ ] Install Tailwind CSS and configure the Data-Dense theme (JetBrains Mono, dark background `#121212`, border `#2a2a2a`, neon green `#00ff66` / amber accents).
 - [ ] Implement Dense Data Table (`data-dense-design` pattern):
@@ -62,6 +67,7 @@ Chunk 5: Docker Containerization & Cloud Run Hosting      [PLANNED]
 ---
 
 ### Chunk 4: Deep-Dive Views & Reporting
+
 - [ ] Implement company detail drawer / modal with:
   - Reproduction Cost breakdown (Cash, Receivables, Inventory, PP&E, Intangibles).
   - Earning Power Value (EPV) calculation walkthrough.
@@ -72,6 +78,7 @@ Chunk 5: Docker Containerization & Cloud Run Hosting      [PLANNED]
 ---
 
 ### Chunk 5: Containerization & Cloud Run Deployment
+
 - [ ] Build multi-stage `Dockerfile`:
   - Stage 1: Build React static assets (`npm run build`).
   - Stage 2: Python 3.13 slim image with FastAPI and compiled frontend assets served via static mount.
