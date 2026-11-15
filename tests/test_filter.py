@@ -1,6 +1,6 @@
 import pytest
 import pandas as pd
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from src.engine.filter import CompanyFilter
 
 def test_apply_foreign_filter():
@@ -12,13 +12,21 @@ def test_apply_foreign_filter():
         "ticker": ["AAPL", "BABA", "MSFT", "ASML"]
     })
     
-    filtered = cf.apply_foreign_filter(df)
-    valid_tickers = filtered["ticker"].tolist()
-    
-    assert "AAPL" in valid_tickers
-    assert "MSFT" in valid_tickers
-    assert "BABA" not in valid_tickers
-    assert "ASML" not in valid_tickers
+    def mock_company_factory(ticker):
+        comp = MagicMock()
+        # AAPL and MSFT are US domestic; BABA and ASML are foreign
+        comp.is_foreign = ticker in ["BABA", "ASML"]
+        return comp
+
+    with patch("edgar.Company", side_effect=mock_company_factory):
+        filtered = cf.apply_foreign_filter(df)
+        valid_tickers = filtered["ticker"].tolist()
+        
+        assert "AAPL" in valid_tickers
+        assert "MSFT" in valid_tickers
+        assert "BABA" not in valid_tickers
+        assert "ASML" not in valid_tickers
+
 
 def test_apply_industry_filters():
     market_mock = MagicMock()
