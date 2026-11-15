@@ -1,0 +1,28 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Config
+.env
+.DS_Store
+
+# Jupyter/VSCode
+.ipynb_checkpoints/
+.vscode/
+
+# Test and output data
+tests/cache/*
+tests/output/*
+output/*
+.pytest_cache/
+
+# Frontend / Web Build
+node_modules/
+dist/
+.vite/
+*.log
+
+# Local Tooling Metadata
+.gemini/
+.antigravitycli/

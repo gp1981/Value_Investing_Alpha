@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
+    "edgartools": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        ".",
+        "python",
+        "-m",
+        "edgar.ai"
+      ],
+      "env": {
+        "EDGAR_IDENTITY": "${EDGAR_IDENTITY}"
+      }
+    }
+  }
+}

@@ -1,0 +1,39 @@
+# Web Framework & API (Approach 3: Serverless Terminal API)
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+pydantic>=2.6.0
+python-dotenv>=1.0.0
+httpx>=0.27.0
+
+# Testing
+pytest                # Unit testing framework
+pytest-asyncio        # Async testing support
+tabulate              # Pretty-print tabular data
+
+# Financial Data Analysis
+pandas                # Core data manipulation and DataFrame structures
+numpy                 # Numerical computing for financial calculations
+
+# Market & SEC Data
+yfinance              # Fetching historical price data for market cap analysis
+edgartools>=5.56.0    # SEC filing discovery and extraction (13F, NPORT)
+
+# Scraping & Browser Automation
+beautifulsoup4        # HTML parsing for local exchanges (BSE, KAP)
+curl_cffi             # WAF-bypass requests library (India/Turkey)
+playwright            # Headless browser (fallback for complex SPAs)
+
+# Data Export
+openpyxl              # Excel (.xlsx) file generation
+xlsxwriter            # Advanced Excel formatting
+
+# Specialized Parsing
+pdfplumber            # Extracting trade tables from Turkish KAP PDFs
+
+# AI & Language Models
+# google-genai          # Modern Google Gemini API for insights and summaries
+ipywidgets            # Interactive widgets for jupyter progress bars
+
+# Notebooks & Environment
+ipython               # Interactive computing and display utilities
+ipykernel             # Kernel install for jupyter notebook  
