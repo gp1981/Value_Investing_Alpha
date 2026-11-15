@@ -22,7 +22,7 @@ Chunk 5: Docker Containerization & Cloud Run Hosting      [PLANNED]
 
 ---
 
-### Chunk 1: Foundation, Workspace & GitHub Setup (Current)
+### Chunk 1: Foundation, Workspace & GitHub Setup (Completed / In Progress)
 - [x] Analyze `Value_Investing_Screener_SEC_Market_Data` and `WEB_APP_PROPOSALS.md`.
 - [x] Migrate core calculation models, SEC providers, market data sync, and tests to `Value_Investing_Alpha`.
 - [x] Import key skills from `antigravity-awesome-skills` (`data-dense-design`, `fastapi-pro`, `fastapi-router-py`, `git-workflow`).
@@ -30,9 +30,11 @@ Chunk 5: Docker Containerization & Cloud Run Hosting      [PLANNED]
 - [x] Create `GEMINI.md` foundational instructions and operational guidelines.
 - [x] Configure `.env.example`, `.gitignore`, and updated `requirements.txt`.
 - [x] Scaffold initial FastAPI application structure (`src/api/`).
-- [ ] Initialize local Git repository and create remote GitHub repo.
-- [ ] Create and activate Python virtual environment (`.venv`) and install dependencies.
-- [ ] Create interactive project summary and handoff documentation.
+- [x] Initialize local Git repository with baseline commit (`main`).
+- [x] Create and activate Python 3.13 virtual environment (`.venv`) and install all 107 dependencies.
+- [x] Verify unit test suite (14 passed, 6 skipped, 0 failures).
+- [ ] Connect remote GitHub repository (`gh auth login` & `gh repo create`).
+- [ ] Set `GITHUB_PERSONAL_ACCESS_TOKEN` in `.env` for GitHub MCP integration.
 
 ---
 
