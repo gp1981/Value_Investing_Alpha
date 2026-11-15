@@ -54,15 +54,22 @@ Chunk 5: Docker Containerization & Cloud Run Hosting      [PLANNED]
 
 ---
 
-### Chunk 3: Frontend Terminal UI (React + Vite)
+### Chunk 3: Frontend Terminal UI (React + Vite) (Completed)
 
-- [ ] Initialize Vite + React + TypeScript in `frontend/`.
-- [ ] Install Tailwind CSS and configure the Data-Dense theme (JetBrains Mono, dark background `#121212`, border `#2a2a2a`, neon green `#00ff66` / amber accents).
-- [ ] Implement Dense Data Table (`data-dense-design` pattern):
-  - Column sorting, filtering by market cap, sector, earnings yield, ROC.
-  - Muted red/green visual badges for valuation premiums/discounts.
-- [ ] Add top ticker status bar and command palette.
-- [ ] Connect frontend to FastAPI `/api/screener/results`.
+- [x] Initialize Vite + React + TypeScript in `frontend/`.
+- [x] Install Tailwind CSS and configure the Data-Dense theme (JetBrains Mono, dark background `#0a0c10`, panel `#10141a`, border `#232936`, neon green `#00e676` / amber accents).
+- [x] Implement Dense Data Table (`data-dense-design` pattern):
+  - Column sorting (Rank, Ticker, Company, Sector, Price, Market Cap, EV, EBIT, Earnings Yield, Return on Capital, Reproduction Value / sh, EPV / sh, EPV MOS, Solvency).
+  - Quick text filtering by ticker/company name.
+  - Sector filtering buttons and Market Cap minimum threshold selector.
+  - Muted red/green visual badges for valuation premiums/discounts and solvency traffic lights.
+- [x] Implement slide-over Company Detail Drawer (`CompanyDrawer.tsx`):
+  - Deep-dive breakdown of Greenblatt's Magic Formula.
+  - Bruce Greenwald EPV vs. Reproduction Cost (franchise moat factor).
+  - Steady-state DCF valuation.
+  - Solvency & Working capital anomaly checks.
+  - Full raw SEC XBRL statement data viewer.
+- [x] Build production bundle via `npm run build` and mount static distribution in FastAPI `src/api/main.py`.
 
 ---
 

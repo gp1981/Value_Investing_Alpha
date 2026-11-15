@@ -4,8 +4,10 @@ Provides REST endpoints and terminal streaming for financial metrics,
 fundamental data (SEC Edgar), and market data (yfinance).
 """
 
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from src.api.routes import health, screener, company
 
 app = FastAPI(
@@ -23,10 +25,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routes
+# Register API routes
 app.include_router(health.router)
 app.include_router(screener.router)
 app.include_router(company.router)
+
+# Mount static frontend build if present (for single-container serverless deployment)
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
+if os.path.exists(frontend_dist):
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+
 
 @app.get("/")
 def root():
