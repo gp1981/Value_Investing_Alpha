@@ -11,17 +11,13 @@
       }
     },
     "edgartools": {
-      "command": "uv",
+      "command": ".venv/bin/python",
       "args": [
-        "run",
-        "--project",
-        ".",
-        "python",
         "-m",
         "edgar.ai"
       ],
       "env": {
-        "EDGAR_IDENTITY": "${EDGAR_IDENTITY}"
+        "EDGAR_IDENTITY": "${EDGAR_IDENTITY:-Value Investing Screener screener@example.com}"
       }
     }
   }

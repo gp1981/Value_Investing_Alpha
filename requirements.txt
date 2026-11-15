@@ -17,6 +17,7 @@ numpy                 # Numerical computing for financial calculations
 # Market & SEC Data
 yfinance              # Fetching historical price data for market cap analysis
 edgartools>=5.56.0    # SEC filing discovery and extraction (13F, NPORT)
+mcp>=1.2.0,<2.0.0     # Model Context Protocol support for edgartools MCP server
 
 # Scraping & Browser Automation
 beautifulsoup4        # HTML parsing for local exchanges (BSE, KAP)
