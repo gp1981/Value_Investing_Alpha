@@ -5,6 +5,15 @@ fundamental data (SEC Edgar), and market data (yfinance).
 """
 
 import os
+# Set default local storage to avoid ~/.edgar and SSD exhaustion
+_default_data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../output/data"))
+_default_cache_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../output/cache"))
+os.makedirs(_default_data_dir, exist_ok=True)
+os.makedirs(_default_cache_dir, exist_ok=True)
+os.environ.setdefault("EDGAR_LOCAL_DATA_DIR", _default_data_dir)
+os.environ.setdefault("EDGAR_CACHE_DIR", _default_cache_dir)
+os.environ.setdefault("EDGAR_IDENTITY", "Value Investing Alpha alpha@example.com")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

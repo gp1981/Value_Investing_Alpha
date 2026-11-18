@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "BROWSERSLIST_CONFIG=.browserslistrc tsc && BROWSERSLIST_CONFIG=.browserslistrc vite build",
     "preview": "vite preview"
   },
+  "browserslist": [
+    "defaults",
+    "not IE 11"
+  ],
   "dependencies": {
     "clsx": "^2.1.1",
     "lucide-react": "^0.460.0",

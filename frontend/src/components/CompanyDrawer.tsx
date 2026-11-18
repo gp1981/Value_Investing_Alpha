@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, ExternalLink, ShieldCheck, TrendingUp, Award, Layers } from 'lucide-react';
+import { X, Award, Layers, TrendingUp, ShieldCheck, Grid3X3 } from 'lucide-react';
 import { CompanyDetailResponse } from '../types';
 
 interface CompanyDrawerProps {
@@ -53,13 +53,30 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
 
   if (!ticker) return null;
 
+  // Helper calculations for EPV and DCF Sensitivity Matrices
+  const shares = data?.shares_outstanding || 1;
+  const price = data?.price || 1;
+  const ebit = data?.magic_formula.ebit || 0;
+  const normalizedTaxRate = data?.greenwald.tax_rate || 0.25;
+  const normalizedEarnings = ebit * (1 - normalizedTaxRate);
+
+  // EPV Sensitivity: WACC rates
+  const epvWaccSteps = [0.08, 0.09, 0.10, 0.11, 0.12];
+
+  // DCF Sensitivity Matrix: discount rate vs growth rate
+  const dcfDiscountRates = [0.08, 0.09, 0.10];
+  const dcfGrowthRates = [0.015, 0.02, 0.025];
+  const fcf = (data?.financial_statement?.net_income || 0) +
+    (data?.financial_statement?.depreciation_amortization || 0) -
+    (data?.financial_statement?.capex || 0);
+
   return (
-    <div className="fixed inset-y-0 right-0 w-full sm:w-[540px] bg-terminal-panel border-l border-terminal-border z-30 shadow-2xl flex flex-col font-mono text-xs">
+    <div className="fixed inset-y-0 right-0 w-full sm:w-[580px] bg-terminal-panel border-l border-terminal-border z-30 shadow-2xl flex flex-col font-mono text-xs select-none">
       {/* Drawer Header */}
       <div className="border-b border-terminal-border p-3 flex items-center justify-between bg-terminal-card">
         <div className="flex items-center gap-2">
           <span className="text-base font-bold text-terminal-green tracking-wider">{ticker}</span>
-          <span className="text-terminal-muted truncate max-w-[280px]">
+          <span className="text-terminal-muted truncate max-w-[300px]">
             {data?.company_name || 'LOADING...'}
           </span>
         </div>
@@ -91,7 +108,7 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
             {/* Quick Summary Pill Bar */}
             <div className="grid grid-cols-3 gap-2 bg-terminal-bg p-2.5 rounded border border-terminal-border text-center">
               <div>
-                <div className="text-[10px] text-terminal-muted">PRICE</div>
+                <div className="text-[10px] text-terminal-muted">MARKET PRICE</div>
                 <div className="text-sm font-bold text-terminal-text tabular-numbers">${data.price.toFixed(2)}</div>
               </div>
               <div>
@@ -173,14 +190,30 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                     {formatPercent(data.greenwald.margin_of_safety)}
                   </span>
                 </div>
-                <div className="flex justify-between col-span-2 pt-0.5">
-                  <span className="text-terminal-muted">Cost of Capital (WACC):</span>
-                  <span className="text-terminal-text">{formatPercent(data.greenwald.wacc)}</span>
+              </div>
+
+              {/* EPV Sensitivity Sub-Table */}
+              <div className="mt-2 pt-2 border-t border-terminal-border/40">
+                <span className="text-[10px] text-terminal-muted block mb-1">EPV HURDLE SENSITIVITY TABLE:</span>
+                <div className="grid grid-cols-5 gap-1 text-[10px] tabular-numbers text-center bg-terminal-bg p-1.5 rounded border border-terminal-border">
+                  {epvWaccSteps.map((wacc) => {
+                    const stepEpvPerShare = (normalizedEarnings / wacc) / shares;
+                    const stepMos = (stepEpvPerShare - price) / stepEpvPerShare;
+                    return (
+                      <div key={wacc} className="border-r border-terminal-border/30 last:border-0">
+                        <div className="text-terminal-muted">{(wacc * 100).toFixed(0)}% WACC</div>
+                        <div className="text-terminal-text font-bold">${stepEpvPerShare.toFixed(1)}</div>
+                        <div className={stepMos > 0 ? 'text-terminal-green font-semibold' : 'text-terminal-red'}>
+                          {(stepMos * 100).toFixed(0)}%
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
-            {/* 3. DCF Steady-State Valuation */}
+            {/* 3. DCF Steady-State Valuation & Sensitivity Matrix */}
             <div className="border border-terminal-border bg-terminal-card rounded p-3 space-y-2">
               <div className="flex items-center gap-1.5 text-terminal-amber font-semibold border-b border-terminal-border pb-1">
                 <TrendingUp className="w-3.5 h-3.5 text-terminal-amber" />
@@ -197,10 +230,49 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                     {formatPercent(data.dcf.margin_of_safety)}
                   </span>
                 </div>
-                <div className="flex justify-between col-span-2 pt-0.5">
-                  <span className="text-terminal-muted">Discount / Perpetual Growth:</span>
-                  <span className="text-terminal-text">{formatPercent(data.dcf.discount_rate)} / {formatPercent(data.dcf.growth_rate)}</span>
+              </div>
+
+              {/* 2D DCF Sensitivity Matrix */}
+              <div className="mt-2 pt-2 border-t border-terminal-border/40">
+                <div className="flex items-center gap-1 text-[10px] text-terminal-muted mb-1">
+                  <Grid3X3 className="w-3 h-3 text-terminal-amber" />
+                  <span>DCF SENSITIVITY MATRIX (DISCOUNT RATE vs PERPETUAL GROWTH):</span>
                 </div>
+                <table className="w-full text-[10px] tabular-numbers border-collapse text-center">
+                  <thead>
+                    <tr className="border-b border-terminal-border text-terminal-muted">
+                      <th className="py-0.5 px-1 text-left">r \ g</th>
+                      {dcfGrowthRates.map((g) => (
+                        <th key={g} className="py-0.5 px-1">{(g * 100).toFixed(1)}%</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dcfDiscountRates.map((r) => (
+                      <tr key={r} className="border-b border-terminal-border/30 hover:bg-terminal-bg">
+                        <td className="py-0.5 px-1 text-left text-terminal-muted font-bold">{(r * 100).toFixed(0)}%</td>
+                        {dcfGrowthRates.map((g) => {
+                          let valPerShare = 0;
+                          if (r > g && fcf > 0) {
+                            const valTotal = (fcf * (1 + g)) / (r - g);
+                            valPerShare = valTotal / shares;
+                          }
+                          const isUnder = valPerShare > price;
+                          return (
+                            <td
+                              key={g}
+                              className={`py-0.5 px-1 font-semibold ${
+                                isUnder ? 'text-terminal-green bg-emerald-950/20' : 'text-terminal-text'
+                              }`}
+                            >
+                              ${valPerShare > 0 ? valPerShare.toFixed(1) : '—'}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
 

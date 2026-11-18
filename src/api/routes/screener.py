@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, Query, HTTPException, Response
 from typing import Optional, List
 import os
+import io
 import pandas as pd
 from datetime import datetime, timezone
 
@@ -8,6 +9,7 @@ from src.api.schemas.screener import ScreenerRunRequest, ScreenerResultsResponse
 from src.api.deps import get_screener, get_integrator
 from src.engine.screener import Screener, is_financial_or_invalid
 from src.engine.integrator import DataIntegrator
+from src.utils.excel_exporter import ExcelExporter
 
 router = APIRouter(prefix="/api/screener", tags=["Screener"])
 
@@ -145,17 +147,16 @@ def _get_fallback_sample_data() -> List[dict]:
         }
     ]
 
-@router.get("/results", response_model=ScreenerResultsResponse)
-def get_screener_results(
-    limit: int = Query(50, ge=1, le=500, description="Max results to return"),
-    sort_by: str = Query("magic_formula_rank", description="Column to sort by"),
-    sort_order: str = Query("asc", pattern="^(asc|desc)$", description="Sort order"),
-    min_market_cap: float = Query(50_000_000.0, description="Minimum market cap"),
-    max_market_cap: Optional[float] = Query(None, description="Maximum market cap"),
-    exclude_financials: bool = Query(True, description="Filter out financial SIC 6000-6999"),
-    sector: Optional[str] = Query(None, description="Filter by sector")
-):
-    """Retrieve ranked stock screener results from cache or sample database."""
+def _get_filtered_screener_data(
+    limit: int = 50,
+    sort_by: str = "magic_formula_rank",
+    sort_order: str = "asc",
+    min_market_cap: float = 50_000_000.0,
+    max_market_cap: Optional[float] = None,
+    exclude_financials: bool = True,
+    sector: Optional[str] = None
+) -> tuple[List[ScreenerStockItem], str]:
+    """Helper to retrieve and filter screener data."""
     source = "cache"
     data = []
     
@@ -191,17 +192,110 @@ def get_screener_results(
     except Exception:
         pass
 
-    # Slice & format
-    total_count = len(filtered)
     sliced = filtered[:limit]
     items = [_df_row_to_stock_item(row, rank=i+1) for i, row in enumerate(sliced)]
+    return items, source
+
+@router.get("/results", response_model=ScreenerResultsResponse)
+def get_screener_results(
+    limit: int = Query(50, ge=1, le=500, description="Max results to return"),
+    sort_by: str = Query("magic_formula_rank", description="Column to sort by"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$", description="Sort order"),
+    min_market_cap: float = Query(50_000_000.0, description="Minimum market cap"),
+    max_market_cap: Optional[float] = Query(None, description="Maximum market cap"),
+    exclude_financials: bool = Query(True, description="Filter out financial SIC 6000-6999"),
+    sector: Optional[str] = Query(None, description="Filter by sector")
+):
+    """Retrieve ranked stock screener results from cache or sample database."""
+    items, source = _get_filtered_screener_data(
+        limit=limit,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        min_market_cap=min_market_cap,
+        max_market_cap=max_market_cap,
+        exclude_financials=exclude_financials,
+        sector=sector
+    )
 
     return ScreenerResultsResponse(
-        total_count=total_count,
+        total_count=len(items),
         returned_count=len(items),
         source=source,
         timestamp=datetime.now(timezone.utc).isoformat(),
         items=items
+    )
+
+@router.get("/export/csv")
+def export_screener_csv(
+    limit: int = Query(100, ge=1, le=500),
+    sort_by: str = Query("magic_formula_rank"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$"),
+    min_market_cap: float = Query(50_000_000.0),
+    max_market_cap: Optional[float] = Query(None),
+    exclude_financials: bool = Query(True),
+    sector: Optional[str] = Query(None)
+):
+    """Export currently filtered screener results to CSV."""
+    items, _ = _get_filtered_screener_data(
+        limit=limit,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        min_market_cap=min_market_cap,
+        max_market_cap=max_market_cap,
+        exclude_financials=exclude_financials,
+        sector=sector
+    )
+    
+    rows = [item.model_dump() for item in items]
+    df = pd.DataFrame(rows)
+    
+    csv_buffer = io.StringIO()
+    df.to_csv(csv_buffer, index=False)
+    
+    filename = f"value_investing_screener_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        content=csv_buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@router.get("/export/excel")
+def export_screener_excel(
+    limit: int = Query(100, ge=1, le=500),
+    sort_by: str = Query("magic_formula_rank"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$"),
+    min_market_cap: float = Query(50_000_000.0),
+    max_market_cap: Optional[float] = Query(None),
+    exclude_financials: bool = Query(True),
+    sector: Optional[str] = Query(None)
+):
+    """Export currently filtered screener results to a formatted Excel workbook."""
+    items, _ = _get_filtered_screener_data(
+        limit=limit,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        min_market_cap=min_market_cap,
+        max_market_cap=max_market_cap,
+        exclude_financials=exclude_financials,
+        sector=sector
+    )
+    
+    rows = [item.model_dump() for item in items]
+    df = pd.DataFrame(rows)
+
+    excel_buffer = io.BytesIO()
+    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="Screener Results", index=False)
+        # Apply Table formatting
+        exporter = ExcelExporter()
+        ws = writer.book["Screener Results"]
+        exporter._format_as_table(ws, "AlphaScreener")
+
+    filename = f"value_investing_screener_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return Response(
+        content=excel_buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
 @router.post("/run", response_model=ScreenerResultsResponse)

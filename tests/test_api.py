@@ -13,13 +13,19 @@ def test_root():
         data = response.json()
         assert data["status"] == "operational"
 
-
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
     assert "python_version" in data
+
+def test_storage_health():
+    response = client.get("/health/storage")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "online"
+    assert "storage_dir" in data
 
 def test_screener_results_endpoint():
     response = client.get("/api/screener/results?limit=5")
@@ -42,6 +48,19 @@ def test_screener_results_sorting():
     assert len(items) >= 2
     # Ensure descending order
     assert items[0]["market_cap"] >= items[1]["market_cap"]
+
+def test_screener_export_csv():
+    response = client.get("/api/screener/export/csv?limit=5")
+    assert response.status_code == 200
+    assert "text/csv" in response.headers.get("content-type", "")
+    assert "AAPL" in response.text
+    assert "ticker" in response.text
+
+def test_screener_export_excel():
+    response = client.get("/api/screener/export/excel?limit=5")
+    assert response.status_code == 200
+    assert "spreadsheetml" in response.headers.get("content-type", "")
+    assert len(response.content) > 100
 
 def test_screener_run_endpoint():
     payload = {
@@ -73,4 +92,3 @@ def test_company_details_404():
     with patch("src.engine.integrator.DataIntegrator.fetch_company_data", side_effect=Exception("Ticker not found")):
         response = client.get("/api/company/INVALID_TICKER_XYZ999")
         assert response.status_code == 404
-

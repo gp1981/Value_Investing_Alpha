@@ -5,6 +5,8 @@
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
 [![Python 3.13](https://img.shields.io/badge/Python-3.13+-3776AB.svg?style=flat&logo=python)](https://www.python.org/)
+[![React 18](https://img.shields.io/badge/React-18.3-61DAFB.svg?style=flat&logo=react)](https://react.dev/)
+[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC.svg?style=flat&logo=tailwindcss)](https://tailwindcss.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code Style](https://img.shields.io/badge/Code%20Style-Data--Dense-blueviolet.svg)](#terminal-design)
 
@@ -13,7 +15,7 @@
 ## 📌 Repository About & Metadata
 
 - **Short Description**: High-integrity value investing screener & Bloomberg-style terminal web app combining SEC XBRL filings (`edgartools`) with Magic Formula, Greenwald EPV, and DCF models.
-- **Website / Demo**: Containerized on Google Cloud Run (Serverless, scale-to-zero).
+- **Website / Deployment**: Containerized on Google Cloud Run (Serverless, scale-to-zero, $0 idle cost).
 - **GitHub Topics**: `value-investing`, `stock-screener`, `sec-edgar`, `xbrl`, `magic-formula`, `earning-power-value`, `fastapi`, `react`, `bloomberg-terminal`, `financial-analysis`
 
 ---
@@ -29,7 +31,7 @@ Most stock screeners rely on third-party commercial APIs that obscure financial 
    - **Return on Capital (ROC)**: $\text{EBIT} / (\text{Net Working Capital} + \text{Net Fixed Assets})$
 2. **Bruce Greenwald's Asset Reproduction Cost & Earning Power Value (EPV)**:
    - **Reproduction Cost**: Balance sheet line-by-line adjustment (cash, accounts receivable, inventory haircuts, PP&E replacement, intangible adjustments).
-   - **Earning Power Value (EPV)**: Normalized steady-state EBIT after maintenance CapEx and structural taxes, capitalized at the cost of capital.
+   - **Earning Power Value (EPV)**: Normalized steady-state EBIT after maintenance CapEx and structural taxes, capitalized at the cost of capital ($WACC$).
    - **Franchise / Moat Evaluation**: EPV compared against Reproduction Cost to identify structural economic moats.
 3. **Discounted Cash Flow (DCF)**:
    - Conservative steady-state projection based on normalized owner earnings.
@@ -42,7 +44,8 @@ Most stock screeners rely on third-party commercial APIs that obscure financial 
 Value_Investing_Alpha/
 ├── src/
 │   ├── api/                     # FastAPI async backend
-│   │   ├── main.py              # Application entrypoint & CORS
+│   │   ├── main.py              # Application entrypoint, CORS & static frontend mount
+│   │   ├── deps.py              # Dependency injection provider
 │   │   ├── routes/              # Endpoints (/health, /api/screener, /api/company)
 │   │   └── schemas/             # Pydantic validation models
 │   ├── engine/                  # Screener pipeline & filtering
@@ -59,90 +62,126 @@ Value_Investing_Alpha/
 │   │   └── market_provider.py   # yfinance client for market cap and prices
 │   └── utils/                   # Cache managers, Excel exports, formatters
 ├── frontend/                    # React + Vite data-dense terminal interface
+│   ├── src/
+│   │   ├── components/          # Header, Toolbar, ScreenerTable, CompanyDrawer
+│   │   ├── App.tsx              # Application coordinator & state
+│   │   └── types.ts             # TypeScript interface contracts
+│   └── dist/                    # Compiled production assets
 ├── docs/                        # Specifications, plans, and session logs
+│   ├── ARCHITECTURE.md          # Comprehensive technical guide for non-professionals
+│   ├── CLOUD_RUN_HOSTING_GUIDE.md # Step-by-step $300 GCP credit deployment guide
+│   ├── STAGE_2_EDGARTOOLS_ROADMAP.md # Post-MVP edgartools feature expansion
 │   ├── PLAN.md                  # 5-chunk delivery roadmap
 │   ├── METHODOLOGY.md           # Valuation mathematics & XBRL mappings
-│   └── LOGS/                    # Multi-agent handoff logs
-├── tests/                       # Unit and integration test suite
+│   └── LOGS/                    # Multi-agent session history
+├── tests/                       # Unit and integration test suite (22 tests passing)
+├── Dockerfile                   # Multi-stage production container build
 └── .agents/                     # Antigravity agent skills and MCP tools
 ```
 
 ---
 
-## 🚀 Quick Start Guide
+## 🚀 Running the Platform Locally
 
 ### Prerequisites
-- Python 3.12+ (Python 3.13 recommended)
-- `uv` (recommended fast package manager) or standard `pip`
-- Node.js 20+ (for frontend development)
+- **Python 3.12+** (Python 3.13 recommended)
+- **`uv`** (ultra-fast package manager, `brew install uv`) or standard `pip`
+- **Node.js 20+** (for frontend compilation, `brew install node`)
 
-### 1. Clone & Set Up Virtual Environment
+### Option A: Unified Production Mode (Fastest & Simplest)
+
+In this mode, a single Python process serves both the interactive React web terminal and the FastAPI REST backend:
 
 ```bash
+# 1. Clone repository
 git clone https://github.com/gp1981/Value_Investing_Alpha.git
 cd Value_Investing_Alpha
 
-# Create virtual environment using uv
+# 2. Set up Python virtual environment
 uv venv .venv --python python3.13
-
-# Activate virtual environment
 source .venv/bin/activate
-
-# Install all dependencies
 uv pip install -r requirements.txt
-```
 
-### 2. Configure Environment
-
-Copy `.env.example` to `.env`:
-```bash
+# 3. Configure SEC identity
 cp .env.example .env
-```
-Edit `.env` to declare your identity for SEC EDGAR (required by the SEC fair-access policy):
-```env
-EDGAR_IDENTITY="Your Name your.email@example.com"
-EDGAR_LOCAL_DATA_DIR="/Volumes/T3/edgartools"  # Optional: external drive to preserve SSD
+# Open .env and insert your name and email (required by SEC)
+
+# 4. Build the frontend assets once
+cd frontend
+npm install
+npm run build
+cd ..
+
+# 5. Start the unified terminal server
+uvicorn src.api.main:app --port 8000
 ```
 
-### 3. Run Backend API
+Open your browser to:
+- **Terminal Web App**: [http://localhost:8000](http://localhost:8000)
+- **Interactive Swagger API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
+---
+
+### Option B: Split Development Mode (Hot-Reloading for Code Editing)
+
+If you are modifying code in React or FastAPI and want instant live-reload:
+
+**Terminal Window 1 (Backend API)**:
 ```bash
-# Start FastAPI backend with hot-reload
+source .venv/bin/activate
 uvicorn src.api.main:app --reload --port 8000
 ```
-Open [http://localhost:8000/docs](http://localhost:8000/docs) to explore the interactive Swagger API documentation.
 
-### 4. Run Unit Tests
-
+**Terminal Window 2 (React Vite Frontend)**:
 ```bash
+cd frontend
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) to view the terminal with instant Vite hot-module replacement.
+
+---
+
+## 🧪 Running Automated Tests
+
+To run the complete test suite:
+```bash
+source .venv/bin/activate
 pytest tests/
 ```
+*Current test suite: **22 passed, 6 skipped, 0 failures**.*
 
 ---
 
-## 🖥️ Terminal Web Interface (Bloomberg Aesthetic)
+## 📊 Exporting Data & Reports
 
-The frontend is built according to the **Data-Dense Design** philosophy:
-- **Zero-Waste Density**: Compact row padding (2-4px) to maximize visible financial metrics without scrolling.
-- **Monospace Alignment**: `JetBrains Mono` tabular figures for instant visual scanning of millions vs billions.
-- **Muted Contrast**: Dark IDE slate palette (`#121212`) with subdued neon accents (terminal green, amber warnings, muted red discounts).
+You can download screener data directly from the web interface or via the API:
+- **Download CSV**: Click the **CSV** button in the toolbar, or visit [http://localhost:8000/api/screener/export/csv](http://localhost:8000/api/screener/export/csv).
+- **Download Formatted Excel**: Click the **EXCEL** button in the toolbar, or visit [http://localhost:8000/api/screener/export/excel](http://localhost:8000/api/screener/export/excel).
 
 ---
 
-## 🗺️ Project Delivery Roadmap
+## ☁️ Deploying to Google Cloud Run ($300 Credit)
 
-| Chunk | Scope | Status |
-| :--- | :--- | :--- |
-| **Chunk 1** | Scaffolding, Migration, MCP & Environment Configuration | ✅ Completed |
-| **Chunk 2** | FastAPI Backend Endpoints (`/screener`, `/company/{ticker}`) | 🟡 In Progress |
-| **Chunk 3** | React + Vite Data-Dense Terminal Frontend | ⏳ Upcoming |
-| **Chunk 4** | Interactive Visuals (EPV vs Reproduction, DCF Matrix, Excel Export) | ⏳ Upcoming |
-| **Chunk 5** | Containerization & Cloud Run Deployment Guide | ⏳ Upcoming |
+The platform is designed for **scale-to-zero** containerized execution on Google Cloud Run. When nobody is using the site, it idles at **\$0.00 / month**, meaning your \$300 Google Cloud credit will cover hosting indefinitely.
+
+For the complete, beginner-friendly step-by-step setup guide, see:  
+👉 **[docs/CLOUD_RUN_HOSTING_GUIDE.md](file:///Users/gabrielepicheo/Documents/Github/gp1981/Value_Investing_Alpha/docs/CLOUD_RUN_HOSTING_GUIDE.md)**
+
+---
+
+## 📚 Technical & Architecture Documentation
+
+For an in-depth understanding of how the platform mechanics, memory caching, and financial formulas work:
+- 📖 **[docs/ARCHITECTURE.md](file:///Users/gabrielepicheo/Documents/Github/gp1981/Value_Investing_Alpha/docs/ARCHITECTURE.md)**: Explains what each technology is for, walks through the user experience, details how cache and SSD protection work, and provides the mathematical logic of the valuation models.
+- 🔭 **[docs/STAGE_2_EDGARTOOLS_ROADMAP.md](file:///Users/gabrielepicheo/Documents/Github/gp1981/Value_Investing_Alpha/docs/STAGE_2_EDGARTOOLS_ROADMAP.md)**: Details the post-MVP plan to integrate advanced `edgartools` capabilities, including Form 13F Superinvestor tracking, Form 4 Insider Cluster Buying radar, Form 8-K material event feeds, and DEF 14A proxy alignment audits.
+- 📋 **[docs/PLAN.md](file:///Users/gabrielepicheo/Documents/Github/gp1981/Value_Investing_Alpha/docs/PLAN.md)**: Project milestone and chunk delivery status.
+- 📝 **[docs/LOGS/SESSION_LOG.md](file:///Users/gabrielepicheo/Documents/Github/gp1981/Value_Investing_Alpha/docs/LOGS/SESSION_LOG.md)**: Session-by-session engineering logs and multi-agent handoff notes.
 
 ---
 
 ## 📄 License & Attribution
 
-Distributed under the MIT License. Financial models derived from:
+Distributed under the MIT License. Valuation models derived from:
 - *The Little Book That Still Beats the Market* (Joel Greenblatt)
 - *Value Investing: From Graham to Buffett and Beyond* (Bruce Greenwald et al.)
+- SEC filing tools powered by [edgartools](https://github.com/dgunning/edgartools) by Dwight Gunning.

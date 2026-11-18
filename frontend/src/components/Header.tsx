@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, ShieldCheck, Database, Terminal, RefreshCw } from 'lucide-react';
+import { Activity, ShieldCheck, Database, Terminal, RefreshCw, HardDrive } from 'lucide-react';
 
 interface HeaderProps {
   onRefresh: () => void;
@@ -10,6 +10,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, itemCount, source }) => {
   const [time, setTime] = useState<string>('');
+  const [storageInfo, setStorageInfo] = useState<{ sizeKb: number; count: number } | null>(null);
 
   useEffect(() => {
     const updateTime = () => {
@@ -21,8 +22,20 @@ export const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, itemCount,
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    fetch('/health/storage')
+      .then((res) => res.json())
+      .then((data) => {
+        setStorageInfo({
+          sizeKb: data.cache_size_kb || 0,
+          count: data.cached_tickers_count || 0,
+        });
+      })
+      .catch(() => {});
+  }, [isLoading]);
+
   return (
-    <header className="border-b border-terminal-border bg-terminal-panel px-3 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+    <header className="border-b border-terminal-border bg-terminal-panel px-3 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs select-none">
       {/* Title & Branding */}
       <div className="flex items-center gap-2.5">
         <div className="flex items-center gap-1.5 font-bold tracking-wider text-terminal-green">
@@ -42,14 +55,22 @@ export const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, itemCount,
           <span className="text-terminal-text font-semibold uppercase">{source}</span>
         </div>
 
+        {storageInfo && (
+          <div className="hidden sm:flex items-center gap-1.5 text-terminal-muted" title={`Local cache size: ${storageInfo.sizeKb} KB`}>
+            <HardDrive className="w-3.5 h-3.5 text-terminal-amber" />
+            <span>CACHE:</span>
+            <span className="text-terminal-text font-medium">{storageInfo.count > 0 ? `${storageInfo.count} STOCKS` : 'SYNC READY'}</span>
+          </div>
+        )}
+
         <div className="flex items-center gap-1.5 text-terminal-muted">
           <Activity className="w-3.5 h-3.5 text-terminal-green" />
-          <span>ACTIVE ROWS:</span>
+          <span>DISPLAYED:</span>
           <span className="text-terminal-green font-semibold tabular-numbers">{itemCount}</span>
         </div>
 
         <div className="flex items-center gap-1.5 text-terminal-muted">
-          <ShieldCheck className="w-3.5 h-3.5 text-terminal-amber" />
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
           <span>SYS:</span>
           <span className="text-terminal-text">ONLINE</span>
         </div>

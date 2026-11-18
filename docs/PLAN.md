@@ -73,23 +73,28 @@ Chunk 5: Docker Containerization & Cloud Run Hosting      [PLANNED]
 
 ---
 
-### Chunk 4: Deep-Dive Views & Reporting
+### Chunk 4: Deep-Dive Views & Reporting (Completed)
 
-- [ ] Implement company detail drawer / modal with:
-  - Reproduction Cost breakdown (Cash, Receivables, Inventory, PP&E, Intangibles).
-  - Earning Power Value (EPV) calculation walkthrough.
-  - Magic Formula rank factors.
-- [ ] Add CSV and Excel export triggers (`src/utils/excel_exporter.py`).
-- [ ] Add cache health indicator in UI header.
+- [x] Implement company detail drawer sensitivity matrices:
+  - EPV Hurdle Rate Sensitivity Table (varying WACC 8% to 12%).
+  - 2D DCF Sensitivity Grid (varying discount rates 8% to 10% vs perpetual growth 1.5% to 2.5%).
+  - Franchise Moat indicator ($>1.0\times$ EPV to Reproduction Cost).
+- [x] Add CSV and Excel export endpoints in FastAPI (`/api/screener/export/csv`, `/api/screener/export/excel`).
+- [x] Connect Export CSV and Export Excel triggers to frontend Toolbar.
+- [x] Add cache & storage health telemetry in UI header consuming `/health/storage`.
+- [x] Write automated tests for export endpoints and cache status (22 tests passing).
 
 ---
 
-### Chunk 5: Containerization & Cloud Run Deployment
+### Chunk 5: Containerization & Cloud Run Hosting Guide (Completed)
 
-- [ ] Build multi-stage `Dockerfile`:
-  - Stage 1: Build React static assets (`npm run build`).
-  - Stage 2: Python 3.13 slim image with FastAPI and compiled frontend assets served via static mount.
-- [ ] Create `.dockerignore`.
-- [ ] Step-by-step GCP Cloud Run deployment guide and gcloud commands.
-- [ ] Configure environment variables in Cloud Run console (`EDGAR_IDENTITY`, etc.).
-- [ ] End-to-end cloud verification.
+- [x] Build multi-stage `Dockerfile`:
+  - Stage 1: Build React static assets via `node:22-alpine` (`npm run build`).
+  - Stage 2: `python:3.13-slim` image with FastAPI, SEC tools, and compiled frontend static mount.
+- [x] Create `.dockerignore` to keep image minimal and clean.
+- [x] Author comprehensive, beginner-friendly cloud deployment guide:
+  - [docs/CLOUD_RUN_HOSTING_GUIDE.md](file:///Users/gabrielepicheo/Documents/Github/gp1981/Value_Investing_Alpha/docs/CLOUD_RUN_HOSTING_GUIDE.md) detailing $300 GCP credit activation, scale-to-zero ($0/month), and one-command deployment.
+- [x] Author technical architecture guide for non-professionals:
+  - [docs/ARCHITECTURE.md](file:///Users/gabrielepicheo/Documents/Github/gp1981/Value_Investing_Alpha/docs/ARCHITECTURE.md) covering tech stack, user experience lifecycle, memory/cache mechanics, and valuation formulas.
+- [x] Author Stage 2 extensibility roadmap:
+  - [docs/STAGE_2_EDGARTOOLS_ROADMAP.md](file:///Users/gabrielepicheo/Documents/Github/gp1981/Value_Investing_Alpha/docs/STAGE_2_EDGARTOOLS_ROADMAP.md) detailing post-MVP Form 13F, Form 4 insider cluster buying, Form 8-K material events, and DEF 14A proxy alignment.

@@ -100,6 +100,36 @@
 - Full terminal web interface is built, connected to FastAPI, and verified in production build mode.
 - Users can run both backend and frontend together with `uvicorn src.api.main:app --port 8000`.
 
-### Immediate Next Steps (for Chunk 4 & 5)
-1. **Chunk 4**: Add visual sensitivity matrices, interactive EPV vs. Reproduction Cost comparison cards, and Excel/CSV export triggers directly from the UI.
-2. **Chunk 5**: Multi-stage Dockerfile packaging FastAPI + compiled React frontend, and step-by-step Google Cloud Run hosting deployment.
+---
+
+## Session 04 - Chunks 4 & 5: Reporting, Containerization, Architecture Guide & Cloud Run
+- **Date**: 2026-11-18
+- **Goal**: Implement sensitivity matrices & exports (Chunk 4), multi-stage Docker containerization (Chunk 5), comprehensive non-technical architecture documentation, $300 GCP Cloud Run hosting guide, and Stage 2 edgartools extensibility roadmap.
+
+### Actions Completed
+1. **Reporting & Exports (Chunk 4)**:
+   - Implemented `GET /api/screener/export/csv` and `GET /api/screener/export/excel` in `src/api/routes/screener.py` using `openpyxl` table styling.
+   - Connected export triggers to the terminal UI in `Toolbar.tsx`.
+   - Built an interactive **EPV WACC Sensitivity Table** (8% to 12%) and a **2D DCF Sensitivity Matrix** (discount rates vs. perpetual growth rates) into `CompanyDrawer.tsx`.
+   - Added cache & storage telemetry in `src/api/routes/health.py` (`/health/storage`) and displayed live cache indicators in `Header.tsx`.
+   - Expanded automated test suite in `tests/test_api.py` with 10 API tests (all **22 unit tests passing**).
+2. **Containerization & Packaging (Chunk 5)**:
+   - Authored multi-stage `Dockerfile`:
+     - Stage 1: `node:22-alpine` builds React assets via `npm run build`.
+     - Stage 2: `python:3.13-slim` installs dependencies, copies backend, mounts compiled frontend, and binds dynamic port `${PORT:-8080}` for Cloud Run.
+   - Created clean `.dockerignore`.
+3. **Comprehensive Documentation Suite**:
+   - `docs/ARCHITECTURE.md`: Complete non-technical architecture guide explaining technology roles, user experience walkthrough from arrival to sign-out, memory/cache mechanics and SSD protection, and mathematical valuation logic.
+   - `docs/CLOUD_RUN_HOSTING_GUIDE.md`: Step-by-step beginner guide to deploy on Google Cloud Run utilizing the user's $300 GCP credit, explaining scale-to-zero ($0/month), gcloud deployment, and budget alerts.
+   - `docs/STAGE_2_EDGARTOOLS_ROADMAP.md`: Detailed plan mapping `edgartools` advanced capabilities into future terminal modules (Form 13F Superinvestor portfolios, Form 4 Insider cluster buying, Form 8-K material events, and DEF 14A executive compensation).
+   - `README.md`: Fully refreshed with badges, local execution options (unified mode vs split dev mode), export endpoints, and documentation index.
+
+### Current State
+- All 5 MVP Chunks are 100% complete.
+- Unified application can be executed locally in a single command (`uvicorn src.api.main:app --port 8000`).
+- Application is containerized and ready for 1-command deployment to Google Cloud Run.
+- Test suite: **22 passed, 6 skipped, 0 failures**.
+
+### Immediate Next Steps (When ready for Cloud Deployment)
+1. Follow `docs/CLOUD_RUN_HOSTING_GUIDE.md` to deploy to Google Cloud Run using the $300 GCP credit.
+2. In Stage 2, implement the first extension module from `docs/STAGE_2_EDGARTOOLS_ROADMAP.md` (Form 4 Insider Trading Radar).

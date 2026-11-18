@@ -130,6 +130,27 @@ export const App: React.FC = () => {
     fetchResults();
   }, [minCap, sortBy, sortOrder, selectedSector]);
 
+  const getExportParams = () => {
+    const params = new URLSearchParams({
+      limit: '100',
+      sort_by: sortBy,
+      sort_order: sortOrder,
+      min_market_cap: minCap.toString(),
+    });
+    if (selectedSector !== 'ALL') {
+      params.append('sector', selectedSector);
+    }
+    return params.toString();
+  };
+
+  const handleExportCSV = () => {
+    window.open(`/api/screener/export/csv?${getExportParams()}`, '_blank');
+  };
+
+  const handleExportExcel = () => {
+    window.open(`/api/screener/export/excel?${getExportParams()}`, '_blank');
+  };
+
   // Client-side quick filter for text search
   const filteredItems = useMemo(() => {
     if (!search.trim()) return items;
@@ -164,6 +185,8 @@ export const App: React.FC = () => {
         onToggleSortOrder={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
         selectedSector={selectedSector}
         onSectorChange={setSelectedSector}
+        onExportCSV={handleExportCSV}
+        onExportExcel={handleExportExcel}
       />
 
       {/* 3. Main Data-Dense Table */}

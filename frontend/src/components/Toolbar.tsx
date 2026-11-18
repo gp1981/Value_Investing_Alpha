@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
+import { Search, SlidersHorizontal, Download, FileSpreadsheet } from 'lucide-react';
 
 interface ToolbarProps {
   search: string;
@@ -12,6 +12,8 @@ interface ToolbarProps {
   onToggleSortOrder: () => void;
   selectedSector: string;
   onSectorChange: (sector: string) => void;
+  onExportCSV: () => void;
+  onExportExcel: () => void;
 }
 
 const SECTORS = ['ALL', 'Technology', 'Healthcare', 'Consumer', 'Industrial', 'Semiconductors'];
@@ -27,11 +29,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onToggleSortOrder,
   selectedSector,
   onSectorChange,
+  onExportCSV,
+  onExportExcel,
 }) => {
   return (
     <div className="bg-terminal-card border-b border-terminal-border px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
       {/* Search Input */}
-      <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-[320px]">
+      <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-[300px]">
         <div className="relative w-full">
           <Search className="w-3.5 h-3.5 text-terminal-muted absolute left-2 top-1/2 -translate-y-1/2" />
           <input
@@ -62,7 +66,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         ))}
       </div>
 
-      {/* Controls: Cap & Sorting */}
+      {/* Controls: Cap, Sorting & Exports */}
       <div className="flex items-center gap-2">
         {/* Min Market Cap Select */}
         <div className="flex items-center gap-1 bg-terminal-bg px-2 py-0.5 rounded border border-terminal-border text-[11px]">
@@ -102,6 +106,26 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             title="Toggle sort direction"
           >
             {sortOrder}
+          </button>
+        </div>
+
+        {/* Export Triggers */}
+        <div className="flex items-center gap-1 pl-1 border-l border-terminal-border">
+          <button
+            onClick={onExportCSV}
+            className="flex items-center gap-1 bg-terminal-bg hover:bg-terminal-border text-terminal-text px-2 py-0.5 rounded border border-terminal-border text-[11px] transition-colors"
+            title="Download CSV"
+          >
+            <Download className="w-3 h-3 text-terminal-muted" />
+            <span className="hidden sm:inline">CSV</span>
+          </button>
+          <button
+            onClick={onExportExcel}
+            className="flex items-center gap-1 bg-terminal-bg hover:bg-terminal-border text-terminal-green px-2 py-0.5 rounded border border-terminal-border text-[11px] transition-colors font-medium"
+            title="Download formatted Excel workbook"
+          >
+            <FileSpreadsheet className="w-3 h-3 text-terminal-green" />
+            <span className="hidden sm:inline">EXCEL</span>
           </button>
         </div>
       </div>
