@@ -133,3 +133,33 @@
 ### Immediate Next Steps (When ready for Cloud Deployment)
 1. Follow `docs/CLOUD_RUN_HOSTING_GUIDE.md` to deploy to Google Cloud Run using the $300 GCP credit.
 2. In Stage 2, implement the first extension module from `docs/STAGE_2_EDGARTOOLS_ROADMAP.md` (Form 4 Insider Trading Radar).
+
+
+---
+
+## Session 05 - Debt CAGR Removal, User Authentication & Real SSD Data Testing Guide
+- **Date**: 2026-11-19
+- **Goal**: Remove invalid "CAGR Full Equity w/ Debt (%)" metric across codebase and docs, implement zero-cost user authentication (backend JWT + frontend AuthModal), and produce instructions for real-data testing on external SSD and $0 cloud SEC data strategy.
+
+### Actions Completed
+1. **Removed "CAGR Full Equity w/ Debt (%)" Metric**:
+   - Removed `full_equity_with_debt` calculation and `"CAGR Full Equity w/ Debt (%)"` return value from `src/models/equity_analysis.py`.
+   - Removed metric from `src/utils/excel_exporter.py` column map.
+   - Removed metric from `src/utils/enrich_data.py`.
+   - Removed Variant 2 formula and documentation from `docs/METHODOLOGY.md`.
+2. **User Authentication & Login Architecture**:
+   - Implemented self-contained, zero-cost JWT authentication system in `src/api/auth.py` and `src/api/routes/auth.py`.
+   - Password security: salted PBKDF2 HMAC SHA-256 with HS-256 JWT tokens.
+   - Pre-seeded analyst account: `analyst@example.com` / `valuealpha2026`.
+   - Added `frontend/src/components/AuthModal.tsx` and updated `Header.tsx` with user session pill, subscription tier badge (`FREE`/`PRO`), and logout action.
+   - Documented cost-effective auth options ($0 built-in JWT vs $0 Firebase Auth up to 50k MAU) in `docs/CLOUD_RUN_HOSTING_GUIDE.md`.
+3. **Real-Data Testing & Cloud SEC Architecture**:
+   - Configured `.env` with validated SEC identity and external SSD paths (`/Volumes/T3/edgartools`).
+   - Added complete local test walkthrough: screening real companies (`AAPL`, `MSFT`, `GOOGL`, `NVDA`, `TXN`, `JNJ`) without needing to wait for a 24 GB download.
+   - Detailed cloud SEC data strategy in `docs/CLOUD_RUN_HOSTING_GUIDE.md`: pre-compiled snapshot + on-demand non-bulk queries + daily Cloud Run Job refresh for total zero-cost operation.
+4. **Testing & Verification**:
+   - Added auth unit tests in `tests/test_api.py`.
+   - All **26 tests passing cleanly** (`pytest tests/`).
+
+### Current State
+- Application is fully functional, tested, authenticated, and ready for real SEC data testing on external SSD.

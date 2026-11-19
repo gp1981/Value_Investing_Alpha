@@ -1,14 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, ShieldCheck, Database, Terminal, RefreshCw, HardDrive } from 'lucide-react';
+import { Activity, ShieldCheck, Database, Terminal, RefreshCw, HardDrive, User, LogOut } from 'lucide-react';
 
 interface HeaderProps {
   onRefresh: () => void;
   isLoading: boolean;
   itemCount: number;
   source: string;
+  user: any;
+  onOpenAuth: () => void;
+  onLogout: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, itemCount, source }) => {
+export const Header: React.FC<HeaderProps> = ({
+  onRefresh,
+  isLoading,
+  itemCount,
+  source,
+  user,
+  onOpenAuth,
+  onLogout,
+}) => {
   const [time, setTime] = useState<string>('');
   const [storageInfo, setStorageInfo] = useState<{ sizeKb: number; count: number } | null>(null);
 
@@ -47,8 +58,8 @@ export const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, itemCount,
         </span>
       </div>
 
-      {/* System Status Metrics */}
-      <div className="flex items-center gap-4 text-[11px]">
+      {/* System Status Metrics & User Auth */}
+      <div className="flex items-center gap-3 text-[11px]">
         <div className="flex items-center gap-1.5 text-terminal-muted">
           <Database className="w-3.5 h-3.5 text-terminal-cyan" />
           <span>SOURCE:</span>
@@ -75,20 +86,50 @@ export const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, itemCount,
           <span className="text-terminal-text">ONLINE</span>
         </div>
 
-        <div className="text-terminal-muted tabular-numbers border-l border-terminal-border pl-3 hidden md:inline-block">
+        <div className="text-terminal-muted tabular-numbers border-l border-terminal-border pl-3 hidden xl:inline-block">
           {time}
         </div>
 
-        {/* Action Button */}
+        {/* Sync Trigger */}
         <button
           onClick={onRefresh}
           disabled={isLoading}
-          className="flex items-center gap-1 bg-terminal-card hover:bg-terminal-border text-terminal-text px-2 py-1 rounded border border-terminal-border transition-colors disabled:opacity-50"
+          className="flex items-center gap-1 bg-terminal-card hover:bg-terminal-border text-terminal-text px-2 py-0.5 rounded border border-terminal-border transition-colors disabled:opacity-50"
           title="Refresh rankings"
         >
           <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin text-terminal-cyan' : ''}`} />
           <span>SYNC</span>
         </button>
+
+        {/* User Authentication Pill / Button */}
+        <div className="border-l border-terminal-border pl-2">
+          {user ? (
+            <div className="flex items-center gap-2 bg-terminal-card px-2 py-0.5 rounded border border-terminal-border">
+              <User className="w-3 h-3 text-terminal-cyan" />
+              <span className="text-terminal-text font-medium truncate max-w-[110px]" title={user.email}>
+                {user.full_name || user.email.split('@')[0]}
+              </span>
+              <span className="text-[9px] bg-terminal-cyan/20 text-terminal-cyan border border-terminal-cyan/40 px-1 py-0.2 rounded font-bold">
+                {user.tier || 'FREE'}
+              </span>
+              <button
+                onClick={onLogout}
+                className="text-terminal-muted hover:text-terminal-red ml-1 p-0.5 transition-colors"
+                title="Sign Out"
+              >
+                <LogOut className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onOpenAuth}
+              className="flex items-center gap-1 bg-terminal-cyan/15 hover:bg-terminal-cyan/25 text-terminal-cyan border border-terminal-cyan/40 px-2.5 py-0.5 rounded font-bold uppercase transition-colors"
+            >
+              <User className="w-3 h-3" />
+              <span>LOGIN</span>
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );

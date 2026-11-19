@@ -38,7 +38,7 @@ def enrich_data():
 
     # Mapping of metrics to their required fetch groups
     cagr_group = {
-        "CAGR Full Equity (%)", "CAGR Full Equity w/ Debt (%)", "CAGR Full Equity NI (%)",
+        "CAGR Full Equity (%)", "CAGR Full Equity NI (%)",
         "Years Analyzed", "Initial Equity", "Last Equity", "Total cum. Dividends Paid",
         "Total cum. Net Repurchases", "Total cum. Debt Change", "Total cum. Net Income"
     }
@@ -148,7 +148,6 @@ def enrich_data():
         'Revenue ZScore': ['Outlier Revenue ZScore', 'Revenue ZScore'],
         'accounts_payable': ['accounts_payable', 'Accounts Payable'],
         'CAGR Full Equity (%)': ['CAGR Full Equity (%)', 'CAGR Full Equity %'],
-        'CAGR Full Equity w/ Debt (%)': ['CAGR Full Equity w/ Debt (%)', 'CAGR Full Equity w/ Debt %'],
         'CAGR Full Equity NI (%)': ['CAGR Full Equity NI (%)', 'CAGR Full Equity NI %'],
         'Years Analyzed': ['Historical Years Analyzed', 'Years Analyzed'],
         'Initial Equity': ['Initial Equity (Historical)', 'Initial Equity'],

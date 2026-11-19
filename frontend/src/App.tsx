@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { Toolbar } from './components/Toolbar';
 import { ScreenerTable } from './components/ScreenerTable';
 import { CompanyDrawer } from './components/CompanyDrawer';
+import { AuthModal } from './components/AuthModal';
 import { StockItem, ScreenerResponse } from './types';
 
 export const App: React.FC = () => {
@@ -11,12 +12,52 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
 
+  // Authentication State
+  const [user, setUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('alpha_user');
+      return saved ? jsonParseSafe(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [token, setToken] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('alpha_token') || null;
+    } catch {
+      return null;
+    }
+  });
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
   // Filters & Sorting state
   const [search, setSearch] = useState<string>('');
   const [minCap, setMinCap] = useState<number>(50000000);
   const [sortBy, setSortBy] = useState<string>('magic_formula_rank');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [selectedSector, setSelectedSector] = useState<string>('ALL');
+
+  function jsonParseSafe(val: string) {
+    try { return JSON.parse(val); } catch { return null; }
+  }
+
+  const handleAuthSuccess = (newToken: string, newUser: any) => {
+    setToken(newToken);
+    setUser(newUser);
+    try {
+      localStorage.setItem('alpha_token', newToken);
+      localStorage.setItem('alpha_user', JSON.stringify(newUser));
+    } catch {}
+  };
+
+  const handleLogout = () => {
+    setToken(null);
+    setUser(null);
+    try {
+      localStorage.removeItem('alpha_token');
+      localStorage.removeItem('alpha_user');
+    } catch {}
+  };
 
   const fetchResults = async () => {
     setIsLoading(true);
@@ -32,7 +73,12 @@ export const App: React.FC = () => {
         params.append('sector', selectedSector);
       }
 
-      const res = await fetch(`/api/screener/results?${params.toString()}`);
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`/api/screener/results?${params.toString()}`, { headers });
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
@@ -165,12 +211,15 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-terminal-bg select-none">
-      {/* 1. Terminal Header */}
+      {/* 1. Terminal Header with Auth */}
       <Header
         onRefresh={fetchResults}
         isLoading={isLoading}
         itemCount={filteredItems.length}
         source={source}
+        user={user}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* 2. Top Controls & Filters */}
@@ -205,6 +254,13 @@ export const App: React.FC = () => {
         />
       </main>
 
+      {/* 5. User Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+      />
+
       {/* Footer / Status bar */}
       <footer className="bg-terminal-panel border-t border-terminal-border px-3 py-1 flex items-center justify-between text-[10px] text-terminal-muted">
         <div>
@@ -212,7 +268,7 @@ export const App: React.FC = () => {
           <span>GREENBLATT MAGIC FORMULA • BRUCE GREENWALD EPV • STEADY-STATE DCF</span>
         </div>
         <div className="hidden sm:block">
-          <span>PRESS ANY ROW FOR FULL 10-K XBRL FACT AUDIT</span>
+          <span>PRESS ANY ROW FOR FULL 10-K XBRL FACT AUDIT • SESSION: {user ? user.email : 'GUEST'}</span>
         </div>
       </footer>
     </div>

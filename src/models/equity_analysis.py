@@ -65,18 +65,12 @@ class EquityAnalysisModel:
         # Variant 1: Full Equity (Standard) - Dividends and Buybacks
         full_equity = last_equity + divs_paid + repurchased_net
         
-        # Variant 2: Full Equity (With Debt Adjustment)
-        # Offset buybacks/dividends funded by debt
+        # Initial and last debt tracking
         initial_debt = df['total_debt'].iloc[0]
         last_debt = df['total_debt'].iloc[-1]
         debt_change = last_debt - initial_debt
         
-        # Only offset the portion of distributions (divs + net buybacks) that can be attributed to debt increase
-        distributions = divs_paid + repurchased_net
-        debt_offset = min(max(0.0, debt_change), distributions)
-        full_equity_with_debt = full_equity - debt_offset
-        
-        # Variant 3: Full Equity (Retained Earnings / Net Income based)
+        # Variant 2: Full Equity (Retained Earnings / Net Income based)
         total_net_income = df['net_income'].sum()
         full_equity_ni = initial_equity + total_net_income
         
@@ -88,7 +82,6 @@ class EquityAnalysisModel:
 
         return {
             "CAGR Full Equity (%)": cagr(full_equity, initial_equity, years_elapsed) * 100,
-            "CAGR Full Equity w/ Debt (%)": cagr(full_equity_with_debt, initial_equity, years_elapsed) * 100,
             "CAGR Full Equity NI (%)": cagr(full_equity_ni, initial_equity, years_elapsed) * 100,
             "Years Analyzed": round(years_elapsed, 1),
             "Initial Equity": initial_equity,

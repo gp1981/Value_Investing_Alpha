@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch
+from datetime import datetime
 from src.api.main import app
 
 client = TestClient(app)
@@ -92,3 +93,45 @@ def test_company_details_404():
     with patch("src.engine.integrator.DataIntegrator.fetch_company_data", side_effect=Exception("Ticker not found")):
         response = client.get("/api/company/INVALID_TICKER_XYZ999")
         assert response.status_code == 404
+
+
+def test_auth_login_default_user():
+    response = client.post("/api/auth/login", json={
+        "email": "analyst@example.com",
+        "password": "valuealpha2026"
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert "access_token" in data
+    assert data["user"]["email"] == "analyst@example.com"
+    assert data["user"]["tier"] == "FREE"
+
+def test_auth_login_invalid_password():
+    response = client.post("/api/auth/login", json={
+        "email": "analyst@example.com",
+        "password": "wrongpassword123"
+    })
+    assert response.status_code == 401
+
+def test_auth_register_and_me():
+    new_email = f"test_{int(datetime.now().timestamp())}@example.com"
+    reg_response = client.post("/api/auth/register", json={
+        "email": new_email,
+        "password": "securepassword123",
+        "full_name": "Test Trader"
+    })
+    assert reg_response.status_code == 200
+    token = reg_response.json()["access_token"]
+
+    # Test /api/auth/me with bearer token
+    me_response = client.get("/api/auth/me", headers={
+        "Authorization": f"Bearer {token}"
+    })
+    assert me_response.status_code == 200
+    user_data = me_response.json()
+    assert user_data["email"] == new_email
+    assert user_data["full_name"] == "Test Trader"
+
+def test_auth_me_unauthorized():
+    response = client.get("/api/auth/me")
+    assert response.status_code == 401

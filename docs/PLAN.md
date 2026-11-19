@@ -13,11 +13,12 @@
 ## Roadmap Chunks
 
 ```
-Chunk 1: Project Scaffolding, Environment & GitHub Setup   [IN PROGRESS / TODAY]
-Chunk 2: Backend API Development & Engine Integration     [PLANNED]
-Chunk 3: Terminal Web Frontend (Bloomberg Aesthetic)      [PLANNED]
-Chunk 4: Company Deep-Dive, Charts & Export Features      [PLANNED]
-Chunk 5: Docker Containerization & Cloud Run Hosting      [PLANNED]
+Chunk 1: Project Scaffolding, Environment & GitHub Setup   [COMPLETED]
+Chunk 2: Backend API Development & Engine Integration     [COMPLETED]
+Chunk 3: Terminal Web Frontend (Bloomberg Aesthetic)      [COMPLETED]
+Chunk 4: Company Deep-Dive, Charts & Export Features      [COMPLETED]
+Chunk 5: Docker Containerization & Cloud Run Hosting      [COMPLETED]
+Chunk 6: Auth, Real-Data Live Testing & SSD Engine Run    [IN PROGRESS / TODAY]
 ```
 
 ---
@@ -98,3 +99,15 @@ Chunk 5: Docker Containerization & Cloud Run Hosting      [PLANNED]
   - [docs/ARCHITECTURE.md](file:///Users/gabrielepicheo/Documents/Github/gp1981/Value_Investing_Alpha/docs/ARCHITECTURE.md) covering tech stack, user experience lifecycle, memory/cache mechanics, and valuation formulas.
 - [x] Author Stage 2 extensibility roadmap:
   - [docs/STAGE_2_EDGARTOOLS_ROADMAP.md](file:///Users/gabrielepicheo/Documents/Github/gp1981/Value_Investing_Alpha/docs/STAGE_2_EDGARTOOLS_ROADMAP.md) detailing post-MVP Form 13F, Form 4 insider cluster buying, Form 8-K material events, and DEF 14A proxy alignment.
+
+---
+
+### Chunk 6: Auth, Real-Data Live Testing & SSD Engine Run (In Progress)
+
+- [x] Remove erroneous "CAGR Full Equity w/ Debt (%)" metric across models, export pipelines, and methodology documentation.
+- [x] Implement lightweight JWT user authentication:
+  - Backend: salted PBKDF2 HMAC-SHA256 password hashing, HS-256 JWT tokens, pre-seeded demo account (`analyst@example.com` / `valuealpha2026`), endpoints `/api/auth/register`, `/api/auth/login`, `/api/auth/me`.
+  - Frontend: `AuthModal.tsx` modal, `Header.tsx` displaying user email and tier status.
+  - Zero-cost cloud auth strategy documented in `docs/CLOUD_RUN_HOSTING_GUIDE.md` (Firebase Auth / Supabase Auth free tiers).
+- [ ] Run live end-to-end screener test fetching real SEC data to external SSD (`/Volumes/T3/edgartools`).
+- [ ] Verify web terminal live data visualization, company drawer, and export features.

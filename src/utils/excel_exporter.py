@@ -48,7 +48,6 @@ class ExcelExporter:
             "interest_expense_ttm": "interest_expense_ttm",
             "income_tax_expense_ttm": "income_tax_expense_ttm",
             "CAGR Full Equity (%)": "CAGR Full Equity (%)",
-            "CAGR Full Equity w/ Debt (%)": "CAGR Full Equity w/ Debt (%)",
             "CAGR Full Equity NI (%)": "CAGR Full Equity NI (%)",
             "Years Analyzed": "Historical Years Analyzed",
             "Initial Equity": "Initial Equity (Historical)",

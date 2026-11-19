@@ -17,7 +17,7 @@ os.environ.setdefault("EDGAR_IDENTITY", "Value Investing Alpha alpha@example.com
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from src.api.routes import health, screener, company
+from src.api.routes import health, screener, company, auth
 
 app = FastAPI(
     title="Value Investing Alpha API",
@@ -38,6 +38,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(screener.router)
 app.include_router(company.router)
+app.include_router(auth.router)
 
 # Mount static frontend build if present (for single-container serverless deployment)
 frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))

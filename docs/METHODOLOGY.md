@@ -218,7 +218,7 @@ The **Equity Analysis Model** reconstructs what shareholders' equity would have 
 *   $\text{Total Distributions} = \text{Cum. Dividends Paid} + \text{Cum. Net Repurchases}$
 *   $\text{Cum. Net Income} = \sum_{k=1}^{n} \text{Net Income}_k$
 
-### 8.3 The Three Full Equity CAGR Variants
+### 8.3 The Two Full Equity CAGR Variants
 
 #### Variant 1: CAGR Full Equity (`CAGR Full Equity (%)`)
 Reconstructs total shareholder equity creation by adding back all capital returned via dividends and net share buybacks:
@@ -229,18 +229,7 @@ $$\text{CAGR Full Equity} = \left( \frac{E_{\text{full}}}{E_0} \right)^{\frac{1}
 
 *Rationale*: Represents the compound growth of shareholder capital if all distributed cash had been retained inside the corporate structure.
 
-#### Variant 2: CAGR Full Equity with Debt Adjustment (`CAGR Full Equity w/ Debt (%)`)
-Penalizes financial engineering where distributions or buybacks were financed by taking on debt rather than through organic operating cash generation:
-
-$$\text{Debt Offset} = \min\left( \max(0, \Delta \text{Debt}),\; \text{Total Distributions} \right)$$
-
-$$E_{\text{debt\_adj}} = E_{\text{full}} - \text{Debt Offset}$$
-
-$$\text{CAGR Full Equity w/ Debt} = \left( \frac{E_{\text{debt\_adj}}}{E_0} \right)^{\frac{1}{\Delta t}} - 1$$
-
-*Rationale*: If a company borrowed $\$10\text{B}$ to execute buybacks, that $\$10\text{B}$ does not represent organic equity growth; this adjustment strips out leveraged distributions.
-
-#### Variant 3: CAGR Full Equity Net Income (`CAGR Full Equity NI (%)`)
+#### Variant 2: CAGR Full Equity Net Income (`CAGR Full Equity NI (%)`)
 Measures equity growth based purely on cumulative accounting net income retained over the period:
 
 $$E_{\text{NI}} = E_0 + \text{Cum. Net Income}$$
