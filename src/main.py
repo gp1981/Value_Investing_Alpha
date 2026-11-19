@@ -153,10 +153,14 @@ def main():
             
         if args.limit:
             tickers = tickers[:args.limit]
-            
+
+        # When explicit tickers are provided via --tickers, always allow
+        # network fetching so the user doesn't need --enrich for ad-hoc lookups.
+        should_enrich = args.enrich or (args.tickers is not None)
+
         # Run screening
         logger.info(f"Starting screening for {len(tickers)} tickers...")
-        df = screener.screen_tickers(tickers, enrich=args.enrich)
+        df = screener.screen_tickers(tickers, enrich=should_enrich)
         
         if df.empty:
             logger.error("No data retrieved for any of the tickers.")
