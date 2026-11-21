@@ -163,3 +163,27 @@
 
 ### Current State
 - Application is fully functional, tested, authenticated, and ready for real SEC data testing on external SSD.
+
+---
+
+## Session 06 - T3 SSD Bulk Data Integration, 500 Error Fix & SEC Filings Explorer
+- **Date**: 2026-11-21
+- **Goal**: Evaluate bulk download on external drive `/Volumes/T3/edgartools`, resolve 500 Internal Server Error on company detail lookup (`/api/company/{ticker}`), and implement Bloomberg-grade SEC filings explorer with loading progress bar.
+
+### Actions Completed
+1. **Evaluated T3 Bulk SEC Storage**:
+   - Inspected `/Volumes/T3/edgartools/data/`: Confirmed **999,291 submission files** (`CIK*.json`) and **20,606 company facts files** fully downloaded and populated in standard `edgartools` layout.
+2. **Fixed Root Causes of 500 Error**:
+   - `src/api/main.py`: Added `load_dotenv()` at startup so `.env` storage paths (`/Volumes/T3/edgartools`) are respected before default path assignments.
+   - `src/api/deps.py`: Ensured flexible `storage_dir` resolution targeting `/Volumes/T3/edgartools`.
+   - `src/data/sec_provider.py`: Updated `__init__`, `is_storage_populated`, and `get_financials` to correctly resolve `self.data_path` and check both `submissions/` and `companyfacts/` so local files are detected instantly without network requests.
+   - `src/api/routes/company.py`: Enabled `enrich=True` for single-company lookups and added defensive checks preventing `NoneType` crashes.
+3. **Implemented SEC Regulatory Filings Explorer**:
+   - Added `get_filings()` in `SECProvider` resolving official SEC EDGAR URLs, interactive XBRL viewer URLs, filing dates, and accession numbers.
+   - Added `SECFilingItem` schema in `src/api/schemas/company.py` and included `filings` list in `CompanyDetailResponse`.
+   - Built interactive **SEC Filings Explorer** in `CompanyDrawer.tsx`: Filter tabs (`ALL`, `10-K`, `10-Q`, `8-K`), form color badges, direct links to official SEC Interactive Data Viewer and EDGAR Index directory.
+   - Built an animated neon top loading bar across drawer header for visual feedback during XBRL extraction.
+4. **Testing & Verification**:
+   - Rebuilt frontend production bundle (`npm run build`).
+   - Verified live retrieval for `GOOGL`, `AAPL`, `MSFT`, `NVDA`, `TXN`, `JNJ` directly from T3 SSD: all returned HTTP 200 with 25 filings in under 0.2s.
+   - All **26 pytest unit tests passing cleanly**.

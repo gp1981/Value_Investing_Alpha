@@ -5,13 +5,33 @@ fundamental data (SEC Edgar), and market data (yfinance).
 """
 
 import os
-# Set default local storage to avoid ~/.edgar and SSD exhaustion
-_default_data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../output/data"))
-_default_cache_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../output/cache"))
+from dotenv import load_dotenv
+
+# Load .env file first to ensure user storage and SEC identity settings are active
+load_dotenv()
+
+# Determine storage paths with environment variable precedence
+_env_data_dir = os.getenv("EDGAR_LOCAL_DATA_DIR")
+_env_cache_dir = os.getenv("EDGAR_CACHE_DIR")
+
+if _env_data_dir:
+    # If user provided base directory without /data, append /data if that's where edgar data resides
+    if os.path.exists(os.path.join(_env_data_dir, "data")):
+        _default_data_dir = os.path.abspath(os.path.join(_env_data_dir, "data"))
+    else:
+        _default_data_dir = os.path.abspath(_env_data_dir)
+else:
+    _default_data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../output/data"))
+
+if _env_cache_dir:
+    _default_cache_dir = os.path.abspath(_env_cache_dir)
+else:
+    _default_cache_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../output/cache"))
+
 os.makedirs(_default_data_dir, exist_ok=True)
 os.makedirs(_default_cache_dir, exist_ok=True)
-os.environ.setdefault("EDGAR_LOCAL_DATA_DIR", _default_data_dir)
-os.environ.setdefault("EDGAR_CACHE_DIR", _default_cache_dir)
+os.environ["EDGAR_LOCAL_DATA_DIR"] = _default_data_dir
+os.environ["EDGAR_CACHE_DIR"] = _default_cache_dir
 os.environ.setdefault("EDGAR_IDENTITY", "Value Investing Alpha alpha@example.com")
 
 from fastapi import FastAPI

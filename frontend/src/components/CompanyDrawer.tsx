@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Award, Layers, TrendingUp, ShieldCheck, Grid3X3 } from 'lucide-react';
+import { X, Award, Layers, TrendingUp, ShieldCheck, Grid3X3, FileText, ExternalLink, Filter } from 'lucide-react';
 import { CompanyDetailResponse } from '../types';
 
 interface CompanyDrawerProps {
@@ -24,6 +24,7 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
   const [data, setData] = useState<CompanyDetailResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filingFilter, setFilingFilter] = useState<'ALL' | '10-K' | '10-Q' | '8-K'>('ALL');
 
   useEffect(() => {
     if (!ticker) {
@@ -77,7 +78,7 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
         <div className="flex items-center gap-2">
           <span className="text-base font-bold text-terminal-green tracking-wider">{ticker}</span>
           <span className="text-terminal-muted truncate max-w-[300px]">
-            {data?.company_name || 'LOADING...'}
+            {data?.company_name || (isLoading ? 'FETCHING SEC FILINGS & FACTS...' : 'VALUATION BREAKDOWN')}
           </span>
         </div>
         <button
@@ -87,6 +88,13 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
           <X className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Top Animated Loading Pulse Bar */}
+      {isLoading && (
+        <div className="w-full h-0.5 bg-terminal-border overflow-hidden">
+          <div className="w-full h-full bg-gradient-to-r from-terminal-green via-terminal-cyan to-terminal-green animate-pulse" />
+        </div>
+      )}
 
       {/* Drawer Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -302,7 +310,105 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
               </div>
             </div>
 
-            {/* 5. Raw XBRL Financial Statement Items */}
+            {/* 5. SEC Regulatory Filings Explorer */}
+            <div className="border border-terminal-border bg-terminal-card rounded p-3 space-y-2">
+              <div className="flex items-center justify-between border-b border-terminal-border pb-1.5">
+                <div className="flex items-center gap-1.5 text-terminal-cyan font-semibold">
+                  <FileText className="w-3.5 h-3.5 text-terminal-cyan" />
+                  <span>
+                    SEC REGULATORY FILINGS (
+                    {(data.filings || []).filter(f => filingFilter === 'ALL' || f.form === filingFilter).length}
+                    )
+                  </span>
+                </div>
+                {/* Filter Chips */}
+                <div className="flex items-center gap-1 text-[10px]">
+                  {(['ALL', '10-K', '10-Q', '8-K'] as const).map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setFilingFilter(filter)}
+                      className={`px-1.5 py-0.5 rounded transition-colors ${
+                        filingFilter === filter
+                          ? 'bg-terminal-cyan/20 text-terminal-cyan border border-terminal-cyan/50 font-bold'
+                          : 'text-terminal-muted hover:text-terminal-text hover:bg-terminal-border'
+                      }`}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {(!data.filings || data.filings.filter(f => filingFilter === 'ALL' || f.form === filingFilter).length === 0) ? (
+                <div className="py-4 text-center text-terminal-muted text-[10px]">
+                  No {filingFilter} filings found in local SEC repository.
+                </div>
+              ) : (
+                <div className="max-h-56 overflow-y-auto divide-y divide-terminal-border/30 text-[10px]">
+                  {data.filings
+                    .filter(f => filingFilter === 'ALL' || f.form === filingFilter)
+                    .map((filing) => {
+                      const is10K = filing.form === '10-K';
+                      const is10Q = filing.form === '10-Q';
+                      const badgeClass = is10K
+                        ? 'border-amber-500/50 text-amber-400 bg-amber-950/40'
+                        : is10Q
+                        ? 'border-cyan-500/50 text-cyan-400 bg-cyan-950/40'
+                        : 'border-purple-500/50 text-purple-400 bg-purple-950/40';
+
+                      return (
+                        <div key={filing.accession_number} className="py-2 px-1 hover:bg-terminal-bg/50 transition-colors space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`px-1.5 py-0.5 rounded font-bold border text-[9px] ${badgeClass}`}>
+                                {filing.form}
+                              </span>
+                              <span className="text-terminal-text font-semibold">{filing.filing_date}</span>
+                              {filing.report_date && (
+                                <span className="text-terminal-muted text-[9px]">
+                                  (Period: {filing.report_date})
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {filing.interactive_url && (
+                                <a
+                                  href={filing.interactive_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-terminal-cyan/15 text-terminal-cyan hover:bg-terminal-cyan/25 border border-terminal-cyan/40 transition-colors font-medium text-[9px]"
+                                  title="Open Official SEC Interactive Data Viewer"
+                                >
+                                  <span>XBRL VIEWER</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                              {filing.url && (
+                                <a
+                                  href={filing.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-terminal-border/50 text-terminal-muted hover:text-terminal-text hover:bg-terminal-border transition-colors text-[9px]"
+                                  title="Open SEC EDGAR Filing Directory"
+                                >
+                                  <span>SEC INDEX</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-terminal-muted text-[9px] font-mono">
+                            <span className="truncate max-w-[320px]">{filing.description || filing.form}</span>
+                            <span className="text-[8px] text-terminal-muted/60">{filing.accession_number}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* 6. Raw XBRL Financial Statement Items */}
             <div className="border border-terminal-border bg-terminal-card rounded p-3 space-y-2">
               <span className="text-[10px] text-terminal-muted uppercase tracking-wider block border-b border-terminal-border pb-1">
                 SEC XBRL FILING DATA POINTS (TTM)

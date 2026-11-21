@@ -18,9 +18,20 @@ class SECProvider:
         set_identity(identity)
         self.storage_dir = storage_dir
         
-        # Define paths
-        data_path = os.path.join(self.storage_dir, "data")
-        cache_path = os.path.join(self.storage_dir, "cache")
+        # Define paths with flexible root resolution
+        clean_storage = self.storage_dir.rstrip("/")
+        if clean_storage.endswith("/data") or os.path.basename(clean_storage) == "data":
+            data_path = clean_storage
+            cache_path = os.path.join(os.path.dirname(clean_storage), "cache")
+        elif os.path.exists(os.path.join(clean_storage, "data")):
+            data_path = os.path.join(clean_storage, "data")
+            cache_path = os.path.join(clean_storage, "cache")
+        else:
+            data_path = os.path.join(clean_storage, "data")
+            cache_path = os.path.join(clean_storage, "cache")
+        
+        self.data_path = data_path
+        self.cache_path = cache_path
         
         # Ensure base directories exist only where specified
         os.makedirs(data_path, exist_ok=True)
@@ -96,12 +107,21 @@ class SECProvider:
 
     def is_storage_populated(self) -> bool:
         """Check if the local storage directory contains filing data."""
-        data_path = os.path.join(self.storage_dir, "data")
-        if not os.path.exists(data_path):
+        if not os.path.exists(self.data_path):
             return False
-        # Check if there are any subdirectories (like 'submissions' or 'filings')
-        items = os.listdir(data_path)
-        return len(items) > 0
+        # Check submissions subdirectory first
+        subs_dir = os.path.join(self.data_path, "submissions")
+        if os.path.exists(subs_dir):
+            try:
+                return len(os.listdir(subs_dir)) > 0
+            except Exception:
+                pass
+        # Fallback check on root data directory
+        try:
+            items = os.listdir(self.data_path)
+            return len(items) > 0
+        except Exception:
+            return False
 
     def sync_storage(self):
         """Bulk download EDGAR data to the configured local storage directory."""
@@ -496,10 +516,11 @@ class SECProvider:
                 return None
             
             cik_padded = str(company.cik).zfill(10)
-            local_path = os.path.join(self.storage_dir, "data", "submissions", f"CIK{cik_padded}.json")
+            local_sub = os.path.join(self.data_path, "submissions", f"CIK{cik_padded}.json")
+            local_facts = os.path.join(self.data_path, "companyfacts", f"CIK{cik_padded}.json")
             
-            # Strict Local Check: If not enriching, we MUST have local data
-            is_local = os.path.exists(local_path)
+            # Check if company data is locally present in submissions or companyfacts
+            is_local = os.path.exists(local_sub) or os.path.exists(local_facts)
             if not is_local and not enrich:
                 self.logger.warning(f"Skipping {ticker}: No local data found and enrichment disabled.")
                 return None
@@ -510,8 +531,18 @@ class SECProvider:
                 print(f"[DATA SOURCE] {ticker}: Retrieved from SEC (Enrichment Mode)")
 
             filings = company.get_filings(form=["10-K", "10-Q"])
+            if not filings:
+                self.logger.warning(f"No 10-K or 10-Q filings found for {ticker}")
+                return None
+
             latest = filings.latest()
+            if not latest:
+                return None
+
             xbrl_latest = latest.xbrl()
+            if not xbrl_latest or not hasattr(xbrl_latest, "statements") or not xbrl_latest.statements:
+                self.logger.warning(f"No XBRL statements available in latest filing for {ticker}")
+                return None
             
             # Balance Sheet (Snapshot)
             bs_df = xbrl_latest.statements.balance_sheet().to_dataframe()
@@ -803,3 +834,46 @@ class SECProvider:
         except Exception as e:
             self.logger.error(f"Error fetching SEC data for {ticker}: {str(e)}")
             raise SECDataError(f"Failed to fetch SEC data for {ticker}: {str(e)}")
+
+    def get_filings(self, ticker: str, forms: Optional[List[str]] = None, limit: int = 25) -> List[Dict[str, Any]]:
+        """
+        Retrieve recent official SEC filings (10-K, 10-Q, 8-K, etc.) for a company.
+        Resolves official SEC index URLs and interactive XBRL viewer links.
+        """
+        if forms is None:
+            forms = ["10-K", "10-Q", "8-K"]
+        try:
+            company = Company(ticker)
+            filings = company.get_filings(form=forms)
+            if not filings:
+                return []
+            
+            items = []
+            for f in filings[:limit]:
+                acc_num = getattr(f, "accession_number", getattr(f, "accession_no", ""))
+                acc_nodash = acc_num.replace("-", "")
+                primary_doc = getattr(f, "primary_document", "")
+                cik = getattr(company, "cik", "")
+                
+                # Interactive XBRL URL
+                interactive_url = None
+                if primary_doc and cik and acc_nodash:
+                    interactive_url = f"https://www.sec.gov/ix?doc=/Archives/edgar/data/{cik}/{acc_nodash}/{primary_doc}"
+                
+                filing_url = getattr(f, "url", getattr(f, "homepage_url", ""))
+                if not filing_url and acc_num and cik:
+                    filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/{acc_num}-index.html"
+                
+                items.append({
+                    "form": str(f.form),
+                    "filing_date": str(f.filing_date) if f.filing_date else "",
+                    "report_date": str(getattr(f, "report_date", "")) if getattr(f, "report_date", None) else None,
+                    "accession_number": acc_num,
+                    "description": str(getattr(f, "primary_doc_description", "") or f.form),
+                    "url": filing_url,
+                    "interactive_url": interactive_url
+                })
+            return items
+        except Exception as e:
+            self.logger.warning(f"Could not fetch filings for {ticker}: {e}")
+            return []

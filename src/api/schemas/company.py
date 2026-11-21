@@ -1,5 +1,15 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
+
+class SECFilingItem(BaseModel):
+    """Metadata and direct SEC links for an individual regulatory filing."""
+    form: str = Field(..., description="Filing type (e.g. 10-K, 10-Q, 8-K)")
+    filing_date: str = Field(..., description="Date filed with SEC (YYYY-MM-DD)")
+    report_date: Optional[str] = Field(default=None, description="Period of report date")
+    accession_number: str = Field(..., description="Unique SEC accession number")
+    description: Optional[str] = Field(default="", description="Filing or primary document description")
+    url: str = Field(..., description="Official SEC EDGAR index URL")
+    interactive_url: Optional[str] = Field(default=None, description="Interactive XBRL Data viewer URL if available")
 
 class MagicFormulaDetails(BaseModel):
     """Detailed breakdown of Greenblatt's Magic Formula calculation."""
@@ -56,3 +66,4 @@ class CompanyDetailResponse(BaseModel):
     dcf: DCFDetails
     safety: SafetyDetails
     financial_statement: Dict[str, Any] = Field(..., description="Raw XBRL line items extracted from SEC filings")
+    filings: List[SECFilingItem] = Field(default_factory=list, description="Recent regulatory SEC filings (10-K, 10-Q, 8-K)")

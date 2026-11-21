@@ -63,6 +63,16 @@ export interface SafetyDetails {
   wc_anomaly_signal: string;
 }
 
+export interface SECFilingItem {
+  form: string;
+  filing_date: string;
+  report_date?: string | null;
+  accession_number: string;
+  description?: string;
+  url: string;
+  interactive_url?: string | null;
+}
+
 export interface CompanyDetailResponse {
   ticker: string;
   company_name: string;
@@ -77,4 +87,5 @@ export interface CompanyDetailResponse {
   dcf: DCFDetails;
   safety: SafetyDetails;
   financial_statement: Record<string, any>;
+  filings?: SECFilingItem[];
 }

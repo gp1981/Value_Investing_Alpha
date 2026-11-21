@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Dict, Any
+from typing import Dict, Any, List
 import dataclasses
 import os
 import edgar
@@ -9,7 +9,8 @@ from src.api.schemas.company import (
     MagicFormulaDetails,
     GreenwaldDetails,
     DCFDetails,
-    SafetyDetails
+    SafetyDetails,
+    SECFilingItem
 )
 from src.api.deps import get_integrator, get_sec_provider
 from src.engine.integrator import DataIntegrator
@@ -29,13 +30,19 @@ def get_company_details(
     """
     Retrieve comprehensive fundamental valuation breakdown for a company.
     Combines Joel Greenblatt's Magic Formula, Bruce Greenwald's EPV & Reproduction Cost,
-    and steady-state DCF intrinsic valuation with SEC XBRL financial facts.
+    and steady-state DCF intrinsic valuation with SEC XBRL financial facts and regulatory filings.
     """
     clean_ticker = ticker.upper().strip()
     
+    fs = None
+    md = None
     try:
-        fs, md = integrator.fetch_company_data(clean_ticker)
+        fs, md = integrator.fetch_company_data(clean_ticker, enrich=True)
     except Exception as e:
+        fs = None
+        md = None
+
+    if fs is None or md is None:
         # Provide sample fallback for demonstration or offline testing
         if clean_ticker in ["AAPL", "DEMO"]:
             from src.data.schemas import FinancialStatement, MarketData
@@ -72,7 +79,7 @@ def get_company_details(
         else:
             raise HTTPException(
                 status_code=404,
-                detail=f"Could not retrieve fundamental or market data for {clean_ticker}: {str(e)}"
+                detail=f"Could not retrieve fundamental or market data for {clean_ticker}. Verify ticker symbol."
             )
 
     # 1. Magic Formula Calculations
@@ -157,6 +164,14 @@ def get_company_details(
     # Exclude complex sub-dictionaries from the raw flat view
     fs_dict.pop("revenue_history", None)
 
+    # 6. Retrieve Recent SEC Regulatory Filings
+    filings_list = []
+    try:
+        raw_filings = integrator.sec.get_filings(clean_ticker, limit=25)
+        filings_list = [SECFilingItem(**f) for f in raw_filings]
+    except Exception:
+        filings_list = []
+
     return CompanyDetailResponse(
         ticker=clean_ticker,
         company_name=fs.company_name or clean_ticker,
@@ -170,8 +185,20 @@ def get_company_details(
         greenwald=greenwald_details,
         dcf=dcf_details,
         safety=safety_details,
-        financial_statement=fs_dict
+        financial_statement=fs_dict,
+        filings=filings_list
     )
+
+@router.get("/{ticker}/filings", response_model=List[SECFilingItem])
+def get_company_filings(
+    ticker: str,
+    sec_provider: SECProvider = Depends(get_sec_provider),
+    limit: int = Query(default=25, ge=1, le=100)
+):
+    """Retrieve recent regulatory SEC filings (10-K, 10-Q, 8-K) with direct official SEC links."""
+    clean_ticker = ticker.upper().strip()
+    raw = sec_provider.get_filings(clean_ticker, limit=limit)
+    return [SECFilingItem(**f) for f in raw]
 
 @router.get("/{ticker}/sec-facts")
 def get_company_sec_facts(ticker: str):

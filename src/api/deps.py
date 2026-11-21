@@ -9,7 +9,13 @@ from src.engine.screener import Screener
 def get_sec_provider() -> SECProvider:
     """Dependency for SEC data provider."""
     identity = os.getenv("EDGAR_IDENTITY", "Value Investing Alpha alpha@example.com")
-    storage_dir = os.getenv("EDGAR_LOCAL_DATA_DIR", "output")
+    storage_dir = os.getenv("EDGAR_LOCAL_DATA_DIR")
+    if not storage_dir:
+        # Check standard default locations
+        if os.path.exists("/Volumes/T3/edgartools"):
+            storage_dir = "/Volumes/T3/edgartools"
+        else:
+            storage_dir = "output"
     return SECProvider(identity=identity, storage_dir=storage_dir)
 
 @lru_cache()
