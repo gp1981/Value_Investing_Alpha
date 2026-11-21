@@ -57,6 +57,49 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [activeMainTab, setActiveMainTab] = useState<'OVERVIEW' | 'STATEMENTS' | 'FILING_VIEWER' | 'FILING_DIFF'>('OVERVIEW');
 
+  // Manual Width Resizing State (default to 50% of webpage width)
+  const [drawerWidth, setDrawerWidth] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      return Math.max(640, Math.round(window.innerWidth * 0.5));
+    }
+    return 720;
+  });
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  // Drag resize handler
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      const newWidth = window.innerWidth - e.clientX;
+      const minWidth = 480;
+      const maxWidth = window.innerWidth - 60;
+      if (newWidth >= minWidth && newWidth <= maxWidth) {
+        setDrawerWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
   // Filings overview list filter
   const [filingFilter, setFilingFilter] = useState<'ALL' | '10-K' | '10-Q' | '8-K'>('ALL');
 
