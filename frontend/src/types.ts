@@ -89,3 +89,56 @@ export interface CompanyDetailResponse {
   financial_statement: Record<string, any>;
   filings?: SECFilingItem[];
 }
+
+export interface StatementRow {
+  concept: string;
+  label: string;
+  depth: number;
+  is_abstract: boolean;
+  is_total: boolean;
+  values: Record<string, number | null>;
+}
+
+export interface StatementReport {
+  periods: string[];
+  rows: StatementRow[];
+}
+
+export interface CompanyStatementsResponse {
+  ticker: string;
+  company_name: string;
+  balance_sheet?: StatementReport | null;
+  income_statement?: StatementReport | null;
+  cash_flow?: StatementReport | null;
+}
+
+export interface FilingContentResponse {
+  ticker: string;
+  accession_number: string;
+  form: string;
+  filing_date: string;
+  report_date?: string | null;
+  available_sections: string[];
+  selected_section?: string | null;
+  content: string;
+  sec_url: string;
+}
+
+export interface DiffToken {
+  type: 'equal' | 'added' | 'removed';
+  text: string;
+}
+
+export interface FilingDiffResponse {
+  ticker: string;
+  form: string;
+  section: string;
+  accession_1: string;
+  accession_2: string;
+  date_1: string;
+  date_2: string;
+  similarity_pct: number;
+  words_added: number;
+  words_removed: number;
+  tokens: DiffToken[];
+}

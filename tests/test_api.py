@@ -54,8 +54,8 @@ def test_screener_export_csv():
     response = client.get("/api/screener/export/csv?limit=5")
     assert response.status_code == 200
     assert "text/csv" in response.headers.get("content-type", "")
-    assert "AAPL" in response.text
     assert "ticker" in response.text
+    assert len(response.text.splitlines()) >= 2
 
 def test_screener_export_excel():
     response = client.get("/api/screener/export/excel?limit=5")

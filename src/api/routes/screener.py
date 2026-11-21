@@ -13,7 +13,19 @@ from src.utils.excel_exporter import ExcelExporter
 
 router = APIRouter(prefix="/api/screener", tags=["Screener"])
 
-CACHE_FILE = "output/company_data.csv"
+def get_cache_file() -> str:
+    """Find the best available company_data.csv cache file."""
+    candidates = [
+        "output/company_data.csv",
+        "output/data/data/company_data.csv",
+        "output/data/company_data.csv"
+    ]
+    for path in candidates:
+        if os.path.exists(path) and os.path.getsize(path) > 100:
+            return path
+    return "output/company_data.csv"
+
+CACHE_FILE = get_cache_file()
 
 def _df_row_to_stock_item(row: dict, rank: int) -> ScreenerStockItem:
     """Helper to convert a dataframe dictionary row into a ScreenerStockItem."""
@@ -160,9 +172,10 @@ def _get_filtered_screener_data(
     source = "cache"
     data = []
     
-    if os.path.exists(CACHE_FILE):
+    cache_path = get_cache_file()
+    if os.path.exists(cache_path):
         try:
-            df = pd.read_csv(CACHE_FILE)
+            df = pd.read_csv(cache_path)
             data = df.to_dict(orient="records")
         except Exception:
             data = []

@@ -187,3 +187,31 @@
    - Rebuilt frontend production bundle (`npm run build`).
    - Verified live retrieval for `GOOGL`, `AAPL`, `MSFT`, `NVDA`, `TXN`, `JNJ` directly from T3 SSD: all returned HTTP 200 with 25 filings in under 0.2s.
    - All **26 pytest unit tests passing cleanly**.
+
+---
+
+## Session 07 - Multi-Period Statements, In-Platform Filing Reader & Redline Diff Engine
+- **Date**: 2026-11-21
+- **Goal**: Integrate 27,696-row uploaded `company_data.csv`, implement zero-latency memory caching for repeat clicks, multi-year Balance Sheet / Income Statement / Cash Flow rendering via edgartools, in-platform SEC filing section reader, and word-level redline filing diff engine.
+
+### Actions Completed
+1. **Data Source Integration**:
+   - Copied and wired `output/data/data/company_data.csv` (27,696 lines, 6.5 MB) so screener and health endpoints detect it automatically via dynamic path fallback.
+2. **Instant In-Memory Caching**:
+   - Implemented `_company_cache`, `_statements_cache`, `_filing_content_cache`, and `_filing_diff_cache` in `src/api/routes/company.py`. Repeat ticker clicks and statement views resolve in < 0.002s with zero redundant downloads or XBRL re-parsing.
+3. **Multi-Year Financial Statements (BS / IS / CF)**:
+   - Built `/api/company/{ticker}/statements` returning multi-period financial statements (FY 2026, 2025, 2024, 2023) mapped to Pydantic schemas `StatementReport` and `StatementRow`.
+4. **In-Platform Filing Reader**:
+   - Built `/api/company/{ticker}/filing/{accession_number}` extracting clean text for specific items (e.g. `Item 1 - Business`, `Item 1A - Risk Factors`, `Item 7 - MD&A`).
+5. **Redline Filing Comparison (Diff Engine)**:
+   - Built `/api/company/{ticker}/filing-diff` utilizing `difflib.SequenceMatcher` to compute word-by-word diffs between fiscal periods with similarity score, added words (+green), and removed words (-red/strikethrough).
+6. **Terminal Workstation Frontend**:
+   - Replaced `CompanyDrawer.tsx` with a 4-tab workstation:
+     1. `VALUATION // OVERVIEW`
+     2. `FINANCIALS (MULTI-YEAR)` with sub-tabs for IS, BS, CF, indentation hierarchy, and compact/$ toggle.
+     3. `SEC FILING READER` with section selector and text search.
+     4. `REDLINE FILING DIFF` with form selector, dual-filing selector, section selector, similarity badge, and highlighted token stream.
+     5. `[EXPAND]` button to toggle full-screen terminal workstation mode (94vw).
+7. **Testing & Build**:
+   - Frontend rebuilt via `npm run build` (210.87 kB).
+   - All **32 pytest tests pass cleanly**.

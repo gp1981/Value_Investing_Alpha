@@ -67,3 +67,63 @@ class CompanyDetailResponse(BaseModel):
     safety: SafetyDetails
     financial_statement: Dict[str, Any] = Field(..., description="Raw XBRL line items extracted from SEC filings")
     filings: List[SECFilingItem] = Field(default_factory=list, description="Recent regulatory SEC filings (10-K, 10-Q, 8-K)")
+
+class StatementRow(BaseModel):
+    """Line item in a multi-period structured financial statement."""
+    concept: str = Field(..., description="US-GAAP concept identifier")
+    label: str = Field(..., description="Human-readable financial statement label")
+    depth: int = Field(default=0, description="Hierarchy indentation depth level")
+    is_abstract: bool = Field(default=False, description="Whether line is a section header")
+    is_total: bool = Field(default=False, description="Whether line is a subtotal or grand total")
+    values: Dict[str, Optional[float]] = Field(default_factory=dict, description="Values mapped per fiscal period column (e.g. FY 2026)")
+
+class StatementReport(BaseModel):
+    """Full statement report containing period header columns and rows."""
+    periods: List[str] = Field(default_factory=list, description="Fiscal period columns (e.g. ['FY 2026', 'FY 2025'])")
+    rows: List[StatementRow] = Field(default_factory=list, description="Ordered statement line items")
+
+class CompanyStatementsResponse(BaseModel):
+    """Complete multi-period financial statements (BS, IS, CF)."""
+    ticker: str = Field(..., description="Ticker symbol")
+    company_name: str = Field(..., description="Reporting entity name")
+    balance_sheet: Optional[StatementReport] = Field(default=None, description="Multi-period Balance Sheet")
+    income_statement: Optional[StatementReport] = Field(default=None, description="Multi-period Income Statement")
+    cash_flow: Optional[StatementReport] = Field(default=None, description="Multi-period Statement of Cash Flows")
+
+class FilingContentResponse(BaseModel):
+    """Structured text content and sections of a regulatory SEC filing."""
+    ticker: str = Field(..., description="Ticker symbol")
+    accession_number: str = Field(..., description="SEC accession identifier")
+    form: str = Field(..., description="Filing type (e.g. 10-K, 10-Q, 8-K, 13F)")
+    filing_date: str = Field(..., description="Filing date")
+    report_date: Optional[str] = Field(default=None, description="Report date")
+    available_sections: List[str] = Field(default_factory=list, description="List of recognized sections/items in document")
+    selected_section: Optional[str] = Field(default=None, description="Currently displayed section/item")
+    content: str = Field(..., description="Extracted clean text content of the selected section or document")
+    sec_url: str = Field(..., description="Official SEC EDGAR index URL")
+
+class FilingDiffRequest(BaseModel):
+    """Request payload to compute redline word diff between two filings."""
+    form: str = Field(default="10-K", description="Filing form type")
+    accession_1: str = Field(..., description="Accession number of first filing (e.g. newer year)")
+    accession_2: str = Field(..., description="Accession number of second filing (e.g. prior year)")
+    section: str = Field(default="Item 1", description="Section/Item name to compare (e.g. 'Item 1', 'Item 1A', 'Item 7')")
+
+class DiffToken(BaseModel):
+    """Word or phrase diff token."""
+    type: str = Field(..., description="Diff status: 'equal', 'added', or 'removed'")
+    text: str = Field(..., description="Text segment")
+
+class FilingDiffResponse(BaseModel):
+    """Detailed word-level redline comparison between two SEC filings."""
+    ticker: str = Field(..., description="Ticker symbol")
+    form: str = Field(..., description="Filing form type")
+    section: str = Field(..., description="Compared section")
+    accession_1: str = Field(..., description="Newer filing accession")
+    accession_2: str = Field(..., description="Prior filing accession")
+    date_1: str = Field(default="", description="Filing date 1")
+    date_2: str = Field(default="", description="Filing date 2")
+    similarity_pct: float = Field(..., description="Overall text similarity percentage (0-100%)")
+    words_added: int = Field(..., description="Count of newly added words")
+    words_removed: int = Field(..., description="Count of deleted/modified words")
+    tokens: List[DiffToken] = Field(default_factory=list, description="Inline token stream with equal/added/removed tags")

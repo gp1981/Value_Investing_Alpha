@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import dataclasses
 import os
+import difflib
+import pandas as pd
 import edgar
 
 from src.api.schemas.company import (
@@ -10,7 +12,14 @@ from src.api.schemas.company import (
     GreenwaldDetails,
     DCFDetails,
     SafetyDetails,
-    SECFilingItem
+    SECFilingItem,
+    StatementRow,
+    StatementReport,
+    CompanyStatementsResponse,
+    FilingContentResponse,
+    FilingDiffRequest,
+    DiffToken,
+    FilingDiffResponse
 )
 from src.api.deps import get_integrator, get_sec_provider
 from src.engine.integrator import DataIntegrator
@@ -22,6 +31,58 @@ from src.models.safety import SafetyModel
 
 router = APIRouter(prefix="/api/company", tags=["Company Deep-Dive"])
 
+# In-Memory caches to prevent redundant SEC downloads & parsing
+_company_cache: Dict[str, CompanyDetailResponse] = {}
+_statements_cache: Dict[str, CompanyStatementsResponse] = {}
+_filing_content_cache: Dict[str, FilingContentResponse] = {}
+_filing_diff_cache: Dict[str, FilingDiffResponse] = {}
+
+def _dataframe_to_statement_report(df: Optional[pd.DataFrame]) -> Optional[StatementReport]:
+    """Helper to convert edgartools MultiPeriodStatement DataFrame to StatementReport schema."""
+    if df is None or df.empty:
+        return None
+    
+    df_clean = df.copy()
+    if 'concept' not in df_clean.columns:
+        df_clean = df_clean.reset_index()
+    
+    exclude_meta = {
+        'concept', 'label', 'depth', 'is_abstract', 'is_total', 'section', 'confidence',
+        'level', 'abstract', 'dimension', 'is_breakdown', 'dimension_axis', 'dimension_member',
+        'dimension_member_label', 'dimension_label', 'balance', 'weight', 'preferred_sign',
+        'parent_concept', 'parent_abstract_concept'
+    }
+    period_cols = [c for c in df_clean.columns if c not in exclude_meta]
+    # Sort period columns descending (e.g. FY 2026, FY 2025...)
+    period_cols = sorted(period_cols, reverse=True)
+    
+    rows = []
+    for _, r in df_clean.iterrows():
+        concept = str(r.get('concept', ''))
+        label = str(r.get('label', concept) or concept)
+        depth = int(r.get('depth', 0) if pd.notnull(r.get('depth')) else 0)
+        is_abs = bool(r.get('is_abstract', False) if pd.notnull(r.get('is_abstract')) else False)
+        is_tot = bool(r.get('is_total', False) if pd.notnull(r.get('is_total')) else False)
+        
+        vals = {}
+        for p in period_cols:
+            val = r.get(p)
+            if pd.notnull(val) and isinstance(val, (int, float)):
+                vals[str(p)] = float(val)
+            else:
+                vals[str(p)] = None
+                
+        rows.append(StatementRow(
+            concept=concept,
+            label=label,
+            depth=depth,
+            is_abstract=is_abs,
+            is_total=is_tot,
+            values=vals
+        ))
+        
+    return StatementReport(periods=[str(p) for p in period_cols], rows=rows)
+
 @router.get("/{ticker}", response_model=CompanyDetailResponse)
 def get_company_details(
     ticker: str,
@@ -31,8 +92,13 @@ def get_company_details(
     Retrieve comprehensive fundamental valuation breakdown for a company.
     Combines Joel Greenblatt's Magic Formula, Bruce Greenwald's EPV & Reproduction Cost,
     and steady-state DCF intrinsic valuation with SEC XBRL financial facts and regulatory filings.
+    Results are cached in memory for zero re-download latency.
     """
     clean_ticker = ticker.upper().strip()
+    
+    # 1. Fast Cache Hit
+    if clean_ticker in _company_cache:
+        return _company_cache[clean_ticker]
     
     fs = None
     md = None
@@ -172,7 +238,7 @@ def get_company_details(
     except Exception:
         filings_list = []
 
-    return CompanyDetailResponse(
+    res = CompanyDetailResponse(
         ticker=clean_ticker,
         company_name=fs.company_name or clean_ticker,
         description=fs.description or "N/A",
@@ -188,6 +254,248 @@ def get_company_details(
         financial_statement=fs_dict,
         filings=filings_list
     )
+    
+    # Store in fast memory cache
+    _company_cache[clean_ticker] = res
+    return res
+
+@router.get("/{ticker}/statements", response_model=CompanyStatementsResponse)
+def get_company_multiperiod_statements(ticker: str):
+    """
+    Retrieve comprehensive multi-period Balance Sheet (BS), Income Statement (IS),
+    and Cash Flow Statement (CF) across fiscal years (e.g. FY 2026, 2025, 2024, 2023)
+    powered by edgartools MultiPeriodStatement rendering. Cached for instant lookups.
+    """
+    clean_ticker = ticker.upper().strip()
+    
+    # Check cache
+    if clean_ticker in _statements_cache:
+        return _statements_cache[clean_ticker]
+        
+    try:
+        comp = edgar.Company(clean_ticker)
+        
+        # 1. Balance Sheet
+        bs_report = None
+        try:
+            stmt_bs = comp.balance_sheet()
+            if stmt_bs:
+                bs_report = _dataframe_to_statement_report(stmt_bs.to_dataframe())
+        except Exception:
+            bs_report = None
+
+        # 2. Income Statement
+        is_report = None
+        try:
+            stmt_is = comp.income_statement()
+            if stmt_is:
+                is_report = _dataframe_to_statement_report(stmt_is.to_dataframe())
+        except Exception:
+            is_report = None
+
+        # 3. Cash Flow Statement
+        cf_report = None
+        try:
+            stmt_cf = comp.cash_flow_statement()
+            if stmt_cf:
+                cf_report = _dataframe_to_statement_report(stmt_cf.to_dataframe())
+        except Exception:
+            cf_report = None
+
+        res = CompanyStatementsResponse(
+            ticker=clean_ticker,
+            company_name=comp.name if hasattr(comp, "name") else clean_ticker,
+            balance_sheet=bs_report,
+            income_statement=is_report,
+            cash_flow=cf_report
+        )
+        _statements_cache[clean_ticker] = res
+        return res
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Could not retrieve financial statements for {clean_ticker}: {str(e)}"
+        )
+
+@router.get("/{ticker}/filing/{accession_number}", response_model=FilingContentResponse)
+def get_filing_document(
+    ticker: str,
+    accession_number: str,
+    section: Optional[str] = Query(None, description="Optional specific Item or section name (e.g. 'Item 1')")
+):
+    """
+    Retrieve the in-platform text of an SEC filing or a specific Item/section.
+    Supports Forms 10-K, 10-Q, 8-K, 13F and other regulatory documents.
+    """
+    clean_ticker = ticker.upper().strip()
+    cache_key = f"{clean_ticker}_{accession_number}_{section or 'ALL'}"
+    if cache_key in _filing_content_cache:
+        return _filing_content_cache[cache_key]
+
+    try:
+        comp = edgar.Company(clean_ticker)
+        filings = comp.get_filings()
+        target = None
+        for f in filings:
+            acc = getattr(f, "accession_number", getattr(f, "accession_no", ""))
+            if acc == accession_number:
+                target = f
+                break
+
+        if not target:
+            raise HTTPException(status_code=404, detail=f"Filing {accession_number} not found for {clean_ticker}")
+
+        obj = target.obj()
+        available_sections = []
+        if hasattr(obj, "items") and obj.items:
+            available_sections = list(obj.items)
+        elif hasattr(obj, "sections") and obj.sections:
+            available_sections = list(obj.sections)
+
+        content = ""
+        selected_section = section
+
+        if section and hasattr(obj, "__getitem__"):
+            try:
+                content = str(obj[section])
+            except Exception:
+                content = f"Section '{section}' could not be extracted directly. Displaying filing text overview."
+        
+        if not content:
+            if hasattr(obj, "text") and obj.text:
+                content = str(obj.text)[:60000]
+            elif hasattr(target, "markdown"):
+                content = str(target.markdown())[:60000]
+            else:
+                content = str(obj)[:60000]
+
+        sec_url = getattr(target, "url", getattr(target, "homepage_url", ""))
+        
+        res = FilingContentResponse(
+            ticker=clean_ticker,
+            accession_number=accession_number,
+            form=str(target.form),
+            filing_date=str(target.filing_date) if target.filing_date else "",
+            report_date=str(getattr(target, "report_date", "")) if getattr(target, "report_date", None) else None,
+            available_sections=[str(s) for s in available_sections],
+            selected_section=selected_section,
+            content=content,
+            sec_url=sec_url
+        )
+        _filing_content_cache[cache_key] = res
+        return res
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to load filing content for {accession_number}: {str(e)}"
+        )
+
+@router.post("/{ticker}/filing-diff", response_model=FilingDiffResponse)
+def compute_filing_redline_diff(
+    ticker: str,
+    payload: FilingDiffRequest
+):
+    """
+    Compute word-level redline comparison between two filings of the same company
+    (e.g. 2026 10-K vs 2025 10-K for 'Item 1 - Business' or 'Item 1A - Risk Factors').
+    Returns an inline token stream tagging equal, added, and removed words.
+    """
+    clean_ticker = ticker.upper().strip()
+    cache_key = f"{clean_ticker}_{payload.accession_1}_{payload.accession_2}_{payload.section}"
+    if cache_key in _filing_diff_cache:
+        return _filing_diff_cache[cache_key]
+
+    try:
+        comp = edgar.Company(clean_ticker)
+        filings = comp.get_filings()
+        
+        f1 = None
+        f2 = None
+        for f in filings:
+            acc = getattr(f, "accession_number", getattr(f, "accession_no", ""))
+            if acc == payload.accession_1:
+                f1 = f
+            elif acc == payload.accession_2:
+                f2 = f
+            if f1 and f2:
+                break
+
+        if not f1 or not f2:
+            raise HTTPException(
+                status_code=404,
+                detail=f"One or both filings ({payload.accession_1}, {payload.accession_2}) not found for {clean_ticker}"
+            )
+
+        obj1 = f1.obj()
+        obj2 = f2.obj()
+
+        def extract_text(obj, sec):
+            if sec and hasattr(obj, "__getitem__"):
+                try:
+                    t = str(obj[sec])
+                    if t and len(t) > 20: return t
+                except Exception:
+                    pass
+            if hasattr(obj, "text") and obj.text:
+                return str(obj.text)[:50000]
+            return str(obj)[:50000]
+
+        # f2 is considered older/comparison, f1 is considered newer
+        text_old = extract_text(obj2, payload.section)
+        text_new = extract_text(obj1, payload.section)
+
+        words_old = text_old.split()
+        words_new = text_new.split()
+
+        matcher = difflib.SequenceMatcher(None, words_old, words_new)
+        similarity_pct = round(matcher.ratio() * 100, 1)
+
+        tokens: List[DiffToken] = []
+        words_added = 0
+        words_removed = 0
+
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == "equal":
+                tokens.append(DiffToken(type="equal", text=" ".join(words_old[i1:i2])))
+            elif tag == "replace":
+                tokens.append(DiffToken(type="removed", text=" ".join(words_old[i1:i2])))
+                tokens.append(DiffToken(type="added", text=" ".join(words_new[j1:j2])))
+                words_removed += (i2 - i1)
+                words_added += (j2 - j1)
+            elif tag == "delete":
+                tokens.append(DiffToken(type="removed", text=" ".join(words_old[i1:i2])))
+                words_removed += (i2 - i1)
+            elif tag == "insert":
+                tokens.append(DiffToken(type="added", text=" ".join(words_new[j1:j2])))
+                words_added += (j2 - j1)
+
+        res = FilingDiffResponse(
+            ticker=clean_ticker,
+            form=payload.form,
+            section=payload.section,
+            accession_1=payload.accession_1,
+            accession_2=payload.accession_2,
+            date_1=str(f1.filing_date) if f1.filing_date else "",
+            date_2=str(f2.filing_date) if f2.filing_date else "",
+            similarity_pct=similarity_pct,
+            words_added=words_added,
+            words_removed=words_removed,
+            tokens=tokens
+        )
+        _filing_diff_cache[cache_key] = res
+        return res
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error computing filing diff: {str(e)}"
+        )
 
 @router.get("/{ticker}/filings", response_model=List[SECFilingItem])
 def get_company_filings(
