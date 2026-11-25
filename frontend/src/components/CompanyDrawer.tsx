@@ -128,6 +128,7 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
   const [readerPeriod, setReaderPeriod] = useState<string>('last_5_years');
   const [readerStartDate, setReaderStartDate] = useState<string>('');
   const [readerEndDate, setReaderEndDate] = useState<string>('');
+  const [appliedCustomDates, setAppliedCustomDates] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [readerFilings, setReaderFilings] = useState<SECFilingItem[]>([]);
   const [isReaderFilingsLoading, setIsReaderFilingsLoading] = useState<boolean>(false);
   const [selectedAccession, setSelectedAccession] = useState<string>('');
@@ -145,6 +146,8 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
   const [eventsData, setEventsData] = useState<MaterialEventsResponse | null>(null);
   const [governanceData, setGovernanceData] = useState<GovernanceResponse | null>(null);
   const [isEventsGovLoading, setIsEventsGovLoading] = useState<boolean>(false);
+  const [eventsItemFilter, setEventsItemFilter] = useState<string>('ALL');
+  const [selectedEventAcc, setSelectedEventAcc] = useState<string>('');
 
   // Redline Diff State
   const [diffForm, setDiffForm] = useState<'10-K' | '10-Q'>('10-K');
@@ -175,7 +178,10 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
       setError(null);
       try {
         const res = await fetch(`/api/company/${ticker}`);
-        if (!res.ok) throw new Error(`Failed to load details for ${ticker}`);
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({}));
+          throw new Error(errJson.detail || `Failed to load details for ${ticker}`);
+        }
         const json: CompanyDetailResponse = await res.json();
         setData(json);
 
@@ -239,8 +245,8 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
       if (readerPeriod !== 'custom') {
         params.set('period', readerPeriod);
       } else {
-        if (readerStartDate) params.set('start_date', readerStartDate);
-        if (readerEndDate) params.set('end_date', readerEndDate);
+        if (appliedCustomDates.start) params.set('start_date', appliedCustomDates.start);
+        if (appliedCustomDates.end) params.set('end_date', appliedCustomDates.end);
       }
       setIsReaderFilingsLoading(true);
       fetch(`/api/company/${ticker}/filings?${params.toString()}`)
@@ -256,7 +262,7 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
         .catch(() => {})
         .finally(() => setIsReaderFilingsLoading(false));
     }
-  }, [activeMainTab, ticker, readerForm, readerPeriod, readerStartDate, readerEndDate]);
+  }, [activeMainTab, ticker, readerForm, readerPeriod, appliedCustomDates]);
 
   // Load Form 4 Insider Radar when entering INSIDERS tab
   useEffect(() => {
@@ -961,6 +967,9 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
            ========================================================================= */}
         {activeMainTab === 'FILING_VIEWER' && (
           <div className="space-y-3">
+            <div className="px-3 py-1.5 rounded bg-terminal-card/70 border border-terminal-border text-[10.5px] text-terminal-muted">
+              <span className="text-terminal-amber font-bold">FILING READER:</span> Filter filings by form &amp; timeframe, click a filing, then use the left bookmarks to jump to sections or inspect attachments.
+            </div>
             {/* 1. Search & Filter Bar (Form Type + Period Preset / Date Range) */}
             <div className="bg-terminal-card p-3 rounded border border-terminal-border space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1021,7 +1030,7 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
               </div>
 
               {readerPeriod === 'custom' && (
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-terminal-border/40">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end pt-1 border-t border-terminal-border/40">
                   <div>
                     <label className="text-[10px] text-terminal-muted block mb-0.5">FROM DATE:</label>
                     <input
@@ -1039,6 +1048,14 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                       onChange={(e) => setReaderEndDate(e.target.value)}
                       className="w-full bg-terminal-bg border border-terminal-border rounded px-2 py-1 text-xs text-terminal-text"
                     />
+                  </div>
+                  <div>
+                    <button
+                      onClick={() => setAppliedCustomDates({ start: readerStartDate, end: readerEndDate })}
+                      className="w-full px-3 py-1 rounded bg-terminal-cyan/90 hover:bg-terminal-cyan text-terminal-bg font-bold text-xs transition-colors"
+                    >
+                      APPLY DATES
+                    </button>
                   </div>
                 </div>
               )}
@@ -1233,6 +1250,9 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
            ========================================================================= */}
         {activeMainTab === 'FILING_DIFF' && (
           <div className="space-y-3">
+            <div className="px-3 py-1.5 rounded bg-terminal-card/70 border border-terminal-border text-[10.5px] text-terminal-muted">
+              <span className="text-purple-400 font-bold">REDLINE DIFF:</span> Compare two filings (e.g. 2025 vs 2024 10-K) to spot added (<span className="text-emerald-400">green</span>) and removed (<span className="text-rose-400">red</span>) disclosures.
+            </div>
             {/* Diff Setup Controls */}
             <div className="bg-terminal-card p-3 rounded border border-terminal-border space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
@@ -1396,6 +1416,9 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
            ========================================================================= */}
         {activeMainTab === 'INSIDERS' && (
           <div className="space-y-3">
+            <div className="px-3 py-1.5 rounded bg-terminal-card/70 border border-terminal-border text-[10.5px] text-terminal-muted">
+              <span className="text-emerald-400 font-bold">INSIDER RADAR (FORM 4):</span> Tracks open-market executive buys (P) &amp; sales (S); flags 30-day Cluster Buying (3+ insiders buying).
+            </div>
             {isInsiderLoading ? (
               <div className="flex flex-col items-center justify-center py-24 text-terminal-muted space-y-2">
                 <div className="animate-spin w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full" />
@@ -1493,6 +1516,9 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
            ========================================================================= */}
         {activeMainTab === 'EVENTS_GOV' && (
           <div className="space-y-4">
+            <div className="px-3 py-1.5 rounded bg-terminal-card/70 border border-terminal-border text-[10.5px] text-terminal-muted">
+              <span className="text-rose-400 font-bold">8-K &amp; PROXY:</span> Monitor material corporate events (8-K) by Item type and review executive alignment &amp; pay (DEF 14A). Filter 8-K events below and click any event to read.
+            </div>
             {isEventsGovLoading ? (
               <div className="flex flex-col items-center justify-center py-24 text-terminal-muted space-y-2">
                 <div className="animate-spin w-6 h-6 border-2 border-rose-400 border-t-transparent rounded-full" />
@@ -1500,40 +1526,82 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
               </div>
             ) : (
               <>
-                {/* 8-K Material Events */}
-                <div className="border border-terminal-border rounded bg-terminal-card p-3 space-y-2">
-                  <div className="flex items-center gap-2 border-b border-terminal-border pb-1.5">
-                    <Bell className="w-3.5 h-3.5 text-rose-400" />
-                    <span className="font-bold text-terminal-text">FORM 8-K MATERIAL CORPORATE EVENTS</span>
-                  </div>
-                  {!eventsData || eventsData.events.length === 0 ? (
-                    <div className="text-terminal-muted text-[11px] py-2">No recent Form 8-K filings found.</div>
-                  ) : (
-                    <div className="space-y-2">
-                      {eventsData.events.map((ev, idx) => (
-                        <div key={idx} className="p-2.5 rounded bg-terminal-bg border border-terminal-border/50 space-y-1">
-                          <div className="flex items-center justify-between text-[10.5px]">
-                            <span className="font-bold text-terminal-cyan">{ev.filing_date} // {ev.accession_number}</span>
-                            {ev.sec_url && (
-                              <a href={ev.sec_url} target="_blank" rel="noopener noreferrer" className="text-terminal-cyan hover:underline flex items-center gap-1">
-                                <span>SEC 8-K</span> <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            )}
-                          </div>
-                          {ev.items.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {ev.items.map((it, i) => (
-                                <span key={i} className="px-1.5 py-0.5 rounded bg-rose-950/60 text-rose-300 border border-rose-700/40 text-[10px]">
-                                  {it}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {ev.summary && <div className="text-[11px] text-terminal-muted line-clamp-3">{ev.summary}</div>}
-                        </div>
-                      ))}
+                {/* 8-K Material Events with Item Filter + Selectable Reader */}
+                <div className="border border-terminal-border rounded bg-terminal-card p-3 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-terminal-border pb-2">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-3.5 h-3.5 text-rose-400" />
+                      <span className="font-bold text-terminal-text">FORM 8-K MATERIAL CORPORATE EVENTS</span>
                     </div>
-                  )}
+                    <select
+                      value={eventsItemFilter}
+                      onChange={(e) => setEventsItemFilter(e.target.value)}
+                      className="bg-terminal-bg border border-terminal-border rounded px-2 py-1 text-[11px] text-terminal-text focus:outline-none focus:border-rose-400"
+                    >
+                      <option value="ALL">All 8-K Items</option>
+                      <option value="1.01">Item 1.01 — Material Agreements</option>
+                      <option value="2.01">Item 2.01 — Acquisitions / Dispositions</option>
+                      <option value="2.02">Item 2.02 — Earnings / Results</option>
+                      <option value="5.02">Item 5.02 — Officer / Director Changes</option>
+                      <option value="7.01">Item 7.01 — Reg FD Disclosure</option>
+                      <option value="8.01">Item 8.01 — Other Events</option>
+                    </select>
+                  </div>
+
+                  {(() => {
+                    const filteredEv = (eventsData?.events || []).filter((ev) => {
+                      if (eventsItemFilter === 'ALL') return true;
+                      return ev.items.some((it) => it.includes(eventsItemFilter));
+                    });
+                    const activeEv = filteredEv.find((e) => e.accession_number === selectedEventAcc) || filteredEv[0];
+                    if (filteredEv.length === 0) {
+                      return <div className="text-terminal-muted text-[11px] py-2">No Form 8-K filings match filter.</div>;
+                    }
+                    return (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                        <div className="lg:col-span-1 max-h-64 overflow-y-auto border border-terminal-border rounded bg-terminal-bg divide-y divide-terminal-border/30">
+                          {filteredEv.map((ev) => {
+                            const isSel = activeEv?.accession_number === ev.accession_number;
+                            return (
+                              <button
+                                key={ev.accession_number}
+                                onClick={() => setSelectedEventAcc(ev.accession_number)}
+                                className={`w-full text-left p-2 transition-colors ${
+                                  isSel ? 'bg-terminal-card border-l-2 border-rose-400' : 'hover:bg-terminal-card/50'
+                                }`}
+                              >
+                                <div className="text-[10.5px] font-bold text-terminal-cyan">{ev.filing_date}</div>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {ev.items.slice(0, 3).map((it, i) => (
+                                    <span key={i} className="px-1 py-0.2 rounded bg-rose-950/60 text-rose-300 text-[9.5px] truncate max-w-full">
+                                      {it}
+                                    </span>
+                                  ))}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="lg:col-span-2 border border-terminal-border rounded bg-terminal-bg p-3 space-y-2 max-h-64 overflow-y-auto">
+                          {activeEv && (
+                            <>
+                              <div className="flex items-center justify-between border-b border-terminal-border/40 pb-1.5 text-[10.5px]">
+                                <span className="font-bold text-terminal-text">
+                                  {activeEv.filing_date} // {activeEv.accession_number}
+                                </span>
+                                {activeEv.sec_url && (
+                                  <a href={activeEv.sec_url} target="_blank" rel="noopener noreferrer" className="text-terminal-cyan hover:underline flex items-center gap-1">
+                                    <span>SEC 8-K</span> <ExternalLink className="w-2.5 h-2.5" />
+                                  </a>
+                                )}
+                              </div>
+                              <FilingContentRenderer content={activeEv.summary || 'No summary text extracted; open SEC 8-K link above.'} />
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* DEF 14A Proxy Governance */}
@@ -1554,6 +1622,30 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                       <div className="text-[10.5px] text-terminal-muted">
                         Filed: <span className="text-terminal-text font-bold">{governanceData.filing_date || 'N/A'}</span> ({governanceData.accession_number})
                       </div>
+                      {governanceData.compensation_rows && governanceData.compensation_rows.length > 0 && (
+                        <div className="overflow-x-auto border border-terminal-border rounded bg-terminal-bg">
+                          <table className="w-full text-[10.5px] tabular-numbers border-collapse">
+                            <thead>
+                              <tr className="bg-terminal-panel border-b border-terminal-border text-terminal-cyan">
+                                {Object.keys(governanceData.compensation_rows[0]).slice(0, 6).map((col) => (
+                                  <th key={col} className="py-1 px-2 text-left font-bold">{col}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-terminal-border/30">
+                              {governanceData.compensation_rows.map((row, idx) => (
+                                <tr key={idx} className="hover:bg-terminal-card/50">
+                                  {Object.keys(governanceData.compensation_rows[0]).slice(0, 6).map((col) => (
+                                    <td key={col} className="py-1 px-2 text-terminal-text">
+                                      {String(row[col] ?? '')}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                       <div className="max-h-72 overflow-y-auto p-2.5 rounded bg-terminal-bg border border-terminal-border/40">
                         <FilingContentRenderer content={governanceData.summary} />
                       </div>

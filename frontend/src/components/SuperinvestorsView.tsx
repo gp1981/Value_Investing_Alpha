@@ -100,6 +100,9 @@ export const SuperinvestorsView: React.FC<SuperinvestorsViewProps> = ({ onSelect
 
       {/* Main Content: 13F Holdings Table */}
       <div className="flex-1 flex flex-col overflow-hidden p-3 space-y-3 overflow-y-auto">
+        <div className="px-3 py-1.5 rounded bg-terminal-card/70 border border-terminal-border text-[10.5px] text-terminal-muted">
+          <span className="text-terminal-cyan font-bold">13F TRACKER:</span> Inspect latest quarterly US equity holdings &amp; QoQ changes of renowned value managers. Select a manager on the left; click any row with a ticker to open its full terminal analysis.
+        </div>
         {activeProfile?.note && (
           <div className="px-3 py-1.5 rounded bg-amber-950/30 border border-amber-700/40 text-amber-300 text-[11px]">
             <strong>Note:</strong> {activeProfile.note}

@@ -841,14 +841,17 @@ class SECProvider:
             forms = ["10-K", "10-Q", "8-K", "DEF 14A", "13F-HR", "4"]
         try:
             company = Company(ticker)
-            filings = company.get_filings(form=forms) if forms else company.get_filings()
+            kwargs: Dict[str, Any] = {}
+            if forms:
+                kwargs["form"] = forms
+            if start_date or end_date:
+                kwargs["filing_date"] = f"{start_date or ''}:{end_date or ''}"
+            filings = company.get_filings(**kwargs)
             if not filings:
                 return []
 
             items = []
-            # Scan a generous window when date filtering is active
-            scan_limit = max(limit * 3, 150) if (start_date or end_date) else limit
-            for f in filings[:scan_limit]:
+            for f in filings[:limit]:
                 f_date = str(f.filing_date) if f.filing_date else ""
                 if start_date and f_date and f_date < start_date:
                     continue

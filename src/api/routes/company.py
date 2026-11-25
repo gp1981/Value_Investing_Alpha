@@ -180,11 +180,20 @@ def get_company_details(
     
     fs = None
     md = None
-    try:
-        fs, md = integrator.fetch_company_data(clean_ticker, enrich=True)
-    except Exception as e:
-        fs = None
-        md = None
+    # Normalize common share-class tickers (e.g., BRK.B -> BRK-B for yfinance/SEC)
+    candidate_tickers = [clean_ticker]
+    if "." in clean_ticker:
+        candidate_tickers.append(clean_ticker.replace(".", "-"))
+
+    for cand in candidate_tickers:
+        try:
+            fs, md = integrator.fetch_company_data(cand, enrich=True)
+            if fs is not None and md is not None:
+                clean_ticker = cand
+                break
+        except Exception:
+            fs = None
+            md = None
 
     if fs is None or md is None:
         # Provide sample fallback for demonstration or offline testing
@@ -221,6 +230,27 @@ def get_company_details(
                 last_updated="2026-11-15T00:00:00"
             )
         else:
+            # Resilient fallback for 13F superinvestor holdings (e.g. ETFs, ADRs, or tickers without full XBRL)
+            try:
+                from src.data.schemas import FinancialStatement, MarketData
+                comp = edgar.Company(clean_ticker)
+                comp_name = getattr(comp, "name", None)
+                if comp_name:
+                    md_fb = integrator.market_provider.get_market_data(clean_ticker)
+                    if md_fb is None:
+                        md_fb = MarketData(ticker=clean_ticker, price=0.0, market_cap=0.0, shares_outstanding=1, last_updated="")
+                    fs = FinancialStatement(
+                        ticker=clean_ticker,
+                        company_name=comp_name,
+                        sic_code=getattr(comp, "sic", None),
+                        industry=getattr(comp, "industry", "N/A") or "N/A",
+                        shares_outstanding=md_fb.shares_outstanding or 1,
+                    )
+                    md = md_fb
+            except Exception:
+                pass
+
+        if fs is None or md is None:
             raise HTTPException(
                 status_code=404,
                 detail=f"Could not retrieve fundamental or market data for {clean_ticker}. Verify ticker symbol."
@@ -465,15 +495,27 @@ def get_filing_document(
         content = ""
         selected_section = section
 
-        if section and hasattr(obj, "__getitem__"):
-            try:
-                sec_obj = obj[section]
-                if hasattr(sec_obj, "markdown") and callable(sec_obj.markdown):
-                    content = str(sec_obj.markdown())
-                else:
-                    content = str(sec_obj)
-            except Exception:
-                content = f"Section '{section}' could not be extracted directly. Displaying filing text overview."
+        if section:
+            # Prefer structured Markdown via obj.section(section).markdown() to preserve tables!
+            if hasattr(obj, "section") and callable(obj.section):
+                try:
+                    sec_item = obj.section(section, strict=False)
+                    if sec_item is not None:
+                        if hasattr(sec_item, "markdown") and callable(sec_item.markdown):
+                            content = str(sec_item.markdown())
+                        elif hasattr(sec_item, "text") and callable(sec_item.text):
+                            content = str(sec_item.text())
+                except Exception:
+                    content = ""
+            if not content and hasattr(obj, "__getitem__"):
+                try:
+                    sec_obj = obj[section]
+                    if hasattr(sec_obj, "markdown") and callable(sec_obj.markdown):
+                        content = str(sec_obj.markdown())
+                    else:
+                        content = str(sec_obj)
+                except Exception:
+                    content = f"Section '{section}' could not be extracted directly. Displaying filing text overview."
 
         if not content:
             if hasattr(target, "markdown") and callable(target.markdown):
@@ -552,6 +594,15 @@ def compute_filing_redline_diff(
         obj2 = f2.obj()
 
         def extract_text(obj, sec):
+            if sec and hasattr(obj, "section") and callable(obj.section):
+                try:
+                    sec_item = obj.section(sec, strict=False)
+                    if sec_item is not None and hasattr(sec_item, "markdown"):
+                        t = str(sec_item.markdown())
+                        if t and len(t) > 20:
+                            return t
+                except Exception:
+                    pass
             if sec and hasattr(obj, "__getitem__"):
                 try:
                     t = str(obj[sec])

@@ -119,18 +119,18 @@ Chunk 11: Mac/Windows README, Docs Audit & Final Commit   [COMPLETED]
 
 ---
 
-### Chunk 7: Storage Resilience & Data Folder Reconciliation (In Progress)
+### Chunk 7: Storage Resilience & Data Folder Reconciliation (Completed)
 
-- [ ] Fix `PermissionError` in `src/api/main.py` and `SECProvider` when external SSD (`/Volumes/T3`) is disconnected: detect unreachable/unmounted paths and gracefully fall back to local `output/` + live on-demand SEC fetching.
-- [ ] Reconcile duplicate `output/data/` and `output/data/data/` directories into a single canonical `output/` layout (`output/company_data.csv`, `output/users.json`, `output/edgar_data/`, `output/edgar_cache/`).
-- [ ] Ensure `company_data.csv` loads cleanly without T3 attached, while `CompanyDrawer` fetches missing filings/facts live from SEC on-demand with in-memory caching.
+- [x] Fix `PermissionError` in `src/api/main.py` and `SECProvider` when external SSD (`/Volumes/T3`) is disconnected: detect unreachable/unmounted paths and gracefully fall back to local `output/` + live on-demand SEC fetching.
+- [x] Reconcile duplicate `output/data/` and `output/data/data/` directories into a single canonical `output/` layout (`output/company_data.csv`, `output/users.json`, `output/edgar_data/`, `output/edgar_cache/`).
+- [x] Ensure `company_data.csv` loads cleanly without T3 attached, while `CompanyDrawer` fetches missing filings/facts live from SEC on-demand with in-memory caching.
 
 ---
 
-### Chunk 8: SEC Filing Reader & Redline Table Rendering (Pending)
+### Chunk 8: SEC Filing Reader & Redline Table Rendering (Completed)
 
-- [ ] Complete manual drag-resize handle in `CompanyDrawer.tsx` (50% default width + smooth drag).
-- [ ] Upgrade `SEC Filing Reader` backend & UI:
+- [x] Complete manual drag-resize handle in `CompanyDrawer.tsx` (50% default width + smooth drag).
+- [x] Upgrade `SEC Filing Reader` backend & UI:
   - Period presets (Last Quarter, Last 4 Quarters, Last Year, Last 5 Years, Date Range) & Form Type dropdown with edgartools data-object descriptions.
   - Scrollable filing list + Attachments links panel.
   - Full section descriptions (`Item 1 - Business`, `Item 1A - Risk Factors`, etc.) as clickable sidebar bookmarks.
@@ -138,26 +138,26 @@ Chunk 11: Mac/Windows README, Docs Audit & Final Commit   [COMPLETED]
 
 ---
 
-### Chunk 9: Stage 2 — Superinvestors (13F) & Form 4 Insider Radar (Pending)
+### Chunk 9: Stage 2 — Superinvestors (13F) & Form 4 Insider Radar (Completed)
 
-- [ ] Build `src/api/routes/superinvestors.py` with curated Value Superinvestor roster (Buffett, Klarman, Li Lu, Pabrai, Marks, Greenblatt, Ackman, Einhorn, Watsa, Akre, Gayner, Tweedy Browne).
-- [ ] Implement `GET /api/superinvestors/list` and `GET /api/superinvestors/{cik}` with 13F-HR holdings, weights, and QoQ activity.
-- [ ] Add top-level `SUPERINVESTORS (13F)` view in React frontend.
-- [ ] Implement `GET /api/company/{ticker}/insider-trades` (Form 4) with 30-day Cluster Buying detection and `INSIDER RADAR` drawer tab.
-
----
-
-### Chunk 10: Stage 2 — Form 8-K Material Events, DEF 14A Governance & Full-Text Search (Pending)
-
-- [ ] Implement `GET /api/company/{ticker}/material-events` (Form 8-K item classification).
-- [ ] Implement `GET /api/company/{ticker}/governance` (DEF 14A proxy executive compensation & alignment).
-- [ ] Implement `POST /api/company/{ticker}/search-filing` (10-K section/keyword search).
-- [ ] Integrate 8-K, DEF 14A, and Search UI into `CompanyDrawer.tsx`.
+- [x] Build `src/api/routes/superinvestors.py` with curated Value Superinvestor roster (Buffett, Klarman, Li Lu, Pabrai, Marks, Greenblatt, Ackman, Einhorn, Watsa, Akre, Gayner, Tweedy Browne).
+- [x] Implement `GET /api/superinvestors/list` and `GET /api/superinvestors/{cik}` with 13F-HR holdings, weights, and QoQ activity.
+- [x] Add top-level `SUPERINVESTORS (13F)` view in React frontend.
+- [x] Implement `GET /api/company/{ticker}/insider-trades` (Form 4) with 30-day Cluster Buying detection and `INSIDER RADAR` drawer tab.
 
 ---
 
-### Chunk 11: Mac/Windows README, Docs Audit & Final Commit (Pending)
+### Chunk 10: Stage 2 — Form 8-K Material Events, DEF 14A Governance & Full-Text Search (Completed)
 
-- [ ] Update `README.md` with full Mac & Windows local installation, T3 vs live SEC mode, and troubleshooting.
-- [ ] Update `docs/ARCHITECTURE.md` and `docs/CLOUD_RUN_HOSTING_GUIDE.md` for canonical storage and Stage 2 modules.
-- [ ] Update `docs/LOGS/SESSION_LOG.md`, run full `pytest` + `npm run build`, and commit cleanly.
+- [x] Implement `GET /api/company/{ticker}/material-events` (Form 8-K item classification).
+- [x] Implement `GET /api/company/{ticker}/governance` (DEF 14A proxy executive compensation & alignment).
+- [x] Implement `POST /api/company/{ticker}/search-filing` (10-K section/keyword search).
+- [x] Integrate 8-K, DEF 14A, and Search UI into `CompanyDrawer.tsx`.
+
+---
+
+### Chunk 11: Mac/Windows README, Docs Audit & Final Commit (Completed)
+
+- [x] Update `README.md` with full Mac & Windows local installation, T3 vs live SEC mode, and troubleshooting.
+- [x] Update `docs/ARCHITECTURE.md` and `docs/CLOUD_RUN_HOSTING_GUIDE.md` for canonical storage and Stage 2 modules.
+- [x] Update `docs/LOGS/SESSION_LOG.md`, run full `pytest` + `npm run build`, and commit cleanly.
