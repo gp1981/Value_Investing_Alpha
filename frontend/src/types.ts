@@ -112,6 +112,18 @@ export interface CompanyStatementsResponse {
   cash_flow?: StatementReport | null;
 }
 
+export interface FilingSectionItem {
+  id: string;
+  title: string;
+}
+
+export interface FilingAttachmentItem {
+  document: string;
+  description: string;
+  doc_type: string;
+  url: string;
+}
+
 export interface FilingContentResponse {
   ticker: string;
   accession_number: string;
@@ -119,9 +131,18 @@ export interface FilingContentResponse {
   filing_date: string;
   report_date?: string | null;
   available_sections: string[];
+  section_bookmarks?: FilingSectionItem[];
+  attachments?: FilingAttachmentItem[];
   selected_section?: string | null;
   content: string;
   sec_url: string;
+}
+
+export interface EdgarFormItem {
+  form: string;
+  object_name: string;
+  category: string;
+  description: string;
 }
 
 export interface DiffToken {
@@ -141,4 +162,96 @@ export interface FilingDiffResponse {
   words_added: number;
   words_removed: number;
   tokens: DiffToken[];
+}
+
+export interface InsiderTransactionItem {
+  filing_date: string;
+  transaction_date: string;
+  insider_name: string;
+  title: string;
+  transaction_code: string;
+  shares: number;
+  price?: number | null;
+  value_usd?: number | null;
+  sec_url: string;
+}
+
+export interface InsiderRadarResponse {
+  ticker: string;
+  cluster_buying_detected: boolean;
+  cluster_buyers_count: number;
+  total_purchases_usd: number;
+  total_sales_usd: number;
+  transactions: InsiderTransactionItem[];
+}
+
+export interface MaterialEventItem {
+  filing_date: string;
+  accession_number: string;
+  items: string[];
+  summary: string;
+  sec_url: string;
+}
+
+export interface MaterialEventsResponse {
+  ticker: string;
+  events: MaterialEventItem[];
+}
+
+export interface GovernanceResponse {
+  ticker: string;
+  filing_date: string;
+  accession_number: string;
+  sec_url: string;
+  summary: string;
+  compensation_rows: Record<string, unknown>[];
+}
+
+export interface FilingSearchHit {
+  section: string;
+  snippet: string;
+}
+
+export interface FilingSearchResponse {
+  ticker: string;
+  form: string;
+  filing_date: string;
+  accession_number: string;
+  query: string;
+  total_hits: number;
+  hits: FilingSearchHit[];
+}
+
+export interface SuperinvestorProfile {
+  cik: string;
+  manager: string;
+  fund_name: string;
+  style: string;
+  note?: string | null;
+}
+
+export interface SuperinvestorHolding {
+  cusip: string;
+  ticker?: string | null;
+  issuer: string;
+  shares: number;
+  value_usd: number;
+  weight_pct: number;
+  activity: string;
+  share_change_pct?: number | null;
+}
+
+export interface SuperinvestorPortfolioResponse {
+  cik: string;
+  manager: string;
+  fund_name: string;
+  style: string;
+  filing_date: string;
+  report_period: string;
+  previous_report_period?: string | null;
+  total_value_usd: number;
+  holdings_count: number;
+  sec_url: string;
+  holdings: SuperinvestorHolding[];
+  source: string;
 }

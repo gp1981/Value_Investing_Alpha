@@ -1,8 +1,8 @@
 import os
 
 # Set local paths BEFORE importing edgar to prevent sandbox permission errors on ~/.edgar
-output_data = os.path.abspath(os.path.join(os.path.dirname(__file__), "../output/data"))
-output_cache = os.path.abspath(os.path.join(os.path.dirname(__file__), "../output/cache"))
+output_data = os.path.abspath(os.path.join(os.path.dirname(__file__), "../output/edgar_data"))
+output_cache = os.path.abspath(os.path.join(os.path.dirname(__file__), "../output/edgar_cache"))
 os.makedirs(output_data, exist_ok=True)
 os.makedirs(output_cache, exist_ok=True)
 

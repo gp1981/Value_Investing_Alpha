@@ -7,11 +7,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict
 import jwt
 
+from src.utils.storage import get_users_file
+
 SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "alpha-terminal-secret-key-change-in-production-2026")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-USERS_FILE = os.path.join(os.getenv("EDGAR_LOCAL_DATA_DIR", "output"), "users.json")
+USERS_FILE = get_users_file()
 
 def _load_users() -> Dict[str, dict]:
     """Loads users from local JSON storage."""

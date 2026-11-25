@@ -16,34 +16,24 @@ class SECProvider:
     
     def __init__(self, identity: str = "Value Investing Screener screener@example.com", storage_dir: str = "output/"):
         set_identity(identity)
-        self.storage_dir = storage_dir
+        self.logger = logging.getLogger(__name__)
         
-        # Define paths with flexible root resolution
-        clean_storage = self.storage_dir.rstrip("/")
-        if clean_storage.endswith("/data") or os.path.basename(clean_storage) == "data":
-            data_path = clean_storage
-            cache_path = os.path.join(os.path.dirname(clean_storage), "cache")
-        elif os.path.exists(os.path.join(clean_storage, "data")):
-            data_path = os.path.join(clean_storage, "data")
-            cache_path = os.path.join(clean_storage, "cache")
-        else:
-            data_path = os.path.join(clean_storage, "data")
-            cache_path = os.path.join(clean_storage, "cache")
+        from src.utils.storage import resolve_edgar_paths
+        data_path, cache_path, _ = resolve_edgar_paths(preferred_data_dir=storage_dir)
         
+        self.storage_dir = os.path.dirname(data_path)
         self.data_path = data_path
         self.cache_path = cache_path
-        
-        # Ensure base directories exist only where specified
-        os.makedirs(data_path, exist_ok=True)
-        os.makedirs(cache_path, exist_ok=True)
         
         # Set environment variables and use explicit config to avoid leakage
         os.environ['EDGAR_LOCAL_DATA_DIR'] = data_path
         os.environ['EDGAR_CACHE_DIR'] = cache_path
         
-        # Use local storage
-        use_local_storage(data_path)
-        self.logger = logging.getLogger(__name__)
+        # Use local storage ONLY if bulk data is actually populated; otherwise allow live SEC HTTP queries
+        if self.is_storage_populated():
+            use_local_storage(data_path)
+        else:
+            use_local_storage(False)
 
     def clear_cache(self):
         """
@@ -835,44 +825,60 @@ class SECProvider:
             self.logger.error(f"Error fetching SEC data for {ticker}: {str(e)}")
             raise SECDataError(f"Failed to fetch SEC data for {ticker}: {str(e)}")
 
-    def get_filings(self, ticker: str, forms: Optional[List[str]] = None, limit: int = 25) -> List[Dict[str, Any]]:
+    def get_filings(
+        self,
+        ticker: str,
+        forms: Optional[List[str]] = None,
+        limit: int = 50,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
-        Retrieve recent official SEC filings (10-K, 10-Q, 8-K, etc.) for a company.
-        Resolves official SEC index URLs and interactive XBRL viewer links.
+        Retrieve recent official SEC filings (10-K, 10-Q, 8-K, 13F-HR, DEF 14A, 4, etc.)
+        with optional form and date-range filtering.
         """
         if forms is None:
-            forms = ["10-K", "10-Q", "8-K"]
+            forms = ["10-K", "10-Q", "8-K", "DEF 14A", "13F-HR", "4"]
         try:
             company = Company(ticker)
-            filings = company.get_filings(form=forms)
+            filings = company.get_filings(form=forms) if forms else company.get_filings()
             if not filings:
                 return []
-            
+
             items = []
-            for f in filings[:limit]:
+            # Scan a generous window when date filtering is active
+            scan_limit = max(limit * 3, 150) if (start_date or end_date) else limit
+            for f in filings[:scan_limit]:
+                f_date = str(f.filing_date) if f.filing_date else ""
+                if start_date and f_date and f_date < start_date:
+                    continue
+                if end_date and f_date and f_date > end_date:
+                    continue
+
                 acc_num = getattr(f, "accession_number", getattr(f, "accession_no", ""))
                 acc_nodash = acc_num.replace("-", "")
                 primary_doc = getattr(f, "primary_document", "")
                 cik = getattr(company, "cik", "")
-                
-                # Interactive XBRL URL
+
                 interactive_url = None
                 if primary_doc and cik and acc_nodash:
                     interactive_url = f"https://www.sec.gov/ix?doc=/Archives/edgar/data/{cik}/{acc_nodash}/{primary_doc}"
-                
+
                 filing_url = getattr(f, "url", getattr(f, "homepage_url", ""))
                 if not filing_url and acc_num and cik:
                     filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc_nodash}/{acc_num}-index.html"
-                
+
                 items.append({
                     "form": str(f.form),
-                    "filing_date": str(f.filing_date) if f.filing_date else "",
+                    "filing_date": f_date,
                     "report_date": str(getattr(f, "report_date", "")) if getattr(f, "report_date", None) else None,
                     "accession_number": acc_num,
                     "description": str(getattr(f, "primary_doc_description", "") or f.form),
                     "url": filing_url,
                     "interactive_url": interactive_url
                 })
+                if len(items) >= limit:
+                    break
             return items
         except Exception as e:
             self.logger.warning(f"Could not fetch filings for {ticker}: {e}")

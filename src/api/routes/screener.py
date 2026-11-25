@@ -11,19 +11,13 @@ from src.engine.screener import Screener, is_financial_or_invalid
 from src.engine.integrator import DataIntegrator
 from src.utils.excel_exporter import ExcelExporter
 
+from src.utils.storage import get_company_data_csv
+
 router = APIRouter(prefix="/api/screener", tags=["Screener"])
 
 def get_cache_file() -> str:
     """Find the best available company_data.csv cache file."""
-    candidates = [
-        "output/company_data.csv",
-        "output/data/data/company_data.csv",
-        "output/data/company_data.csv"
-    ]
-    for path in candidates:
-        if os.path.exists(path) and os.path.getsize(path) > 100:
-            return path
-    return "output/company_data.csv"
+    return get_company_data_csv()
 
 CACHE_FILE = get_cache_file()
 

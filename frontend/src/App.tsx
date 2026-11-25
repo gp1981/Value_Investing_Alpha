@@ -4,6 +4,7 @@ import { Toolbar } from './components/Toolbar';
 import { ScreenerTable } from './components/ScreenerTable';
 import { CompanyDrawer } from './components/CompanyDrawer';
 import { AuthModal } from './components/AuthModal';
+import { SuperinvestorsView } from './components/SuperinvestorsView';
 import { StockItem, ScreenerResponse } from './types';
 
 export const App: React.FC = () => {
@@ -11,6 +12,7 @@ export const App: React.FC = () => {
   const [source, setSource] = useState<string>('INIT');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<'SCREENER' | 'SUPERINVESTORS'>('SCREENER');
 
   // Authentication State
   const [user, setUser] = useState<any>(() => {
@@ -222,37 +224,73 @@ export const App: React.FC = () => {
         onLogout={handleLogout}
       />
 
-      {/* 2. Top Controls & Filters */}
-      <Toolbar
-        search={search}
-        onSearchChange={setSearch}
-        minCap={minCap}
-        onMinCapChange={setMinCap}
-        sortBy={sortBy}
-        onSortByChange={setSortBy}
-        sortOrder={sortOrder}
-        onToggleSortOrder={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-        selectedSector={selectedSector}
-        onSectorChange={setSelectedSector}
-        onExportCSV={handleExportCSV}
-        onExportExcel={handleExportExcel}
-      />
+      {/* Top-Level Mode Switcher */}
+      <div className="flex items-center gap-1 px-3 pt-1 bg-terminal-panel border-b border-terminal-border font-mono text-[11px]">
+        <button
+          onClick={() => setActiveView('SCREENER')}
+          className={`px-3 py-1 rounded-t font-bold transition-colors ${
+            activeView === 'SCREENER'
+              ? 'bg-terminal-bg text-terminal-green border-t-2 border-terminal-green'
+              : 'text-terminal-muted hover:text-terminal-text'
+          }`}
+        >
+          FUNDAMENTAL SCREENER
+        </button>
+        <button
+          onClick={() => setActiveView('SUPERINVESTORS')}
+          className={`px-3 py-1 rounded-t font-bold transition-colors ${
+            activeView === 'SUPERINVESTORS'
+              ? 'bg-terminal-bg text-terminal-cyan border-t-2 border-terminal-cyan'
+              : 'text-terminal-muted hover:text-terminal-text'
+          }`}
+        >
+          SUPERINVESTORS (13F)
+        </button>
+      </div>
 
-      {/* 3. Main Data-Dense Table */}
-      <main className="flex-1 flex overflow-hidden relative">
-        <ScreenerTable
-          items={filteredItems}
-          selectedTicker={selectedTicker}
-          onSelectTicker={(t) => setSelectedTicker(t)}
-          isLoading={isLoading}
-        />
+      {activeView === 'SCREENER' ? (
+        <>
+          {/* 2. Top Controls & Filters */}
+          <Toolbar
+            search={search}
+            onSearchChange={setSearch}
+            minCap={minCap}
+            onMinCapChange={setMinCap}
+            sortBy={sortBy}
+            onSortByChange={setSortBy}
+            sortOrder={sortOrder}
+            onToggleSortOrder={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+            selectedSector={selectedSector}
+            onSectorChange={setSelectedSector}
+            onExportCSV={handleExportCSV}
+            onExportExcel={handleExportExcel}
+          />
 
-        {/* 4. Company Detail Drawer */}
-        <CompanyDrawer
-          ticker={selectedTicker}
-          onClose={() => setSelectedTicker(null)}
-        />
-      </main>
+          {/* 3. Main Data-Dense Table */}
+          <main className="flex-1 flex overflow-hidden relative">
+            <ScreenerTable
+              items={filteredItems}
+              selectedTicker={selectedTicker}
+              onSelectTicker={(t) => setSelectedTicker(t)}
+              isLoading={isLoading}
+            />
+
+            {/* 4. Company Detail Drawer */}
+            <CompanyDrawer
+              ticker={selectedTicker}
+              onClose={() => setSelectedTicker(null)}
+            />
+          </main>
+        </>
+      ) : (
+        <main className="flex-1 flex overflow-hidden relative">
+          <SuperinvestorsView onSelectTicker={(t) => setSelectedTicker(t)} />
+          <CompanyDrawer
+            ticker={selectedTicker}
+            onClose={() => setSelectedTicker(null)}
+          />
+        </main>
+      )}
 
       {/* 5. User Authentication Modal */}
       <AuthModal

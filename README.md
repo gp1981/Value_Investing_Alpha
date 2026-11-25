@@ -81,38 +81,78 @@ Value_Investing_Alpha/
 
 ---
 
-## 🚀 Running the Platform Locally
+## 🚀 Running the Platform Locally (macOS & Windows)
 
 ### Prerequisites
 - **Python 3.12+** (Python 3.13 recommended)
-- **`uv`** (ultra-fast package manager, `brew install uv`) or standard `pip`
-- **Node.js 20+** (for frontend compilation, `brew install node`)
+- **Node.js 20+** (for frontend compilation)
+- **`uv`** (optional, ultra-fast Python package manager) or standard `pip`
 
-### Option A: Unified Production Mode (Fastest & Simplest)
+### Canonical Data & Storage Layout
+- `output/company_data.csv` — Screener dataset (served immediately on startup, even without external storage).
+- `output/users.json` — Local authentication store.
+- `output/edgar_data/` & `output/edgar_cache/` — Automatic local fallback when `EDGAR_LOCAL_DATA_DIR` (e.g. an external SSD like `/Volumes/T3/edgartools`) is disconnected; missing filings are fetched live from SEC EDGAR on demand and cached in memory.
 
-In this mode, a single Python process serves both the interactive React web terminal and the FastAPI REST backend:
+---
+
+### Option A: macOS Setup & Run
 
 ```bash
-# 1. Clone repository
+# 1. Install prerequisites (if needed)
+brew install python@3.13 node uv
+
+# 2. Clone repository
 git clone https://github.com/gp1981/Value_Investing_Alpha.git
 cd Value_Investing_Alpha
 
-# 2. Set up Python virtual environment
+# 3. Create virtual environment & install dependencies
 uv venv .venv --python python3.13
 source .venv/bin/activate
 uv pip install -r requirements.txt
 
-# 3. Configure SEC identity
+# 4. Configure SEC identity (required by SEC EDGAR)
 cp .env.example .env
-# Open .env and insert your name and email (required by SEC)
+# Edit .env and set EDGAR_IDENTITY="Your Name your.email@example.com"
+# Optional: set EDGAR_LOCAL_DATA_DIR="/Volumes/T3/edgartools" (falls back automatically if unplugged)
 
-# 4. Build the frontend assets once
+# 5. Build the frontend assets
 cd frontend
 npm install
 npm run build
 cd ..
 
-# 5. Start the unified terminal server
+# 6. Start the unified terminal server
+uvicorn src.api.main:app --port 8000
+```
+
+---
+
+### Option B: Windows (PowerShell) Setup & Run
+
+```powershell
+# 1. Install Python 3.13 (python.org) and Node.js 20+ (nodejs.org), then open PowerShell
+
+# 2. Clone repository
+git clone https://github.com/gp1981/Value_Investing_Alpha.git
+cd Value_Investing_Alpha
+
+# 3. Create virtual environment & install dependencies
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# 4. Configure SEC identity
+Copy-Item .env.example .env
+# Open .env in Notepad and set EDGAR_IDENTITY="Your Name your.email@example.com"
+# Optional: set EDGAR_LOCAL_DATA_DIR="D:\edgartools" (falls back automatically if unplugged)
+
+# 5. Build the frontend assets
+cd frontend
+npm install
+npm run build
+cd ..
+
+# 6. Start the unified terminal server
 uvicorn src.api.main:app --port 8000
 ```
 

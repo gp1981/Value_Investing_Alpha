@@ -16,15 +16,28 @@ import {
   BookOpen,
   ArrowRight,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Calendar,
+  Paperclip,
+  Bookmark,
+  Bell,
+  Scale,
+  UserCheck
 } from 'lucide-react';
 import {
   CompanyDetailResponse,
   CompanyStatementsResponse,
   StatementReport,
   FilingContentResponse,
-  FilingDiffResponse
+  FilingDiffResponse,
+  SECFilingItem,
+  EdgarFormItem,
+  InsiderRadarResponse,
+  MaterialEventsResponse,
+  GovernanceResponse,
+  FilingSearchResponse
 } from '../types';
+import { FilingContentRenderer } from './FilingContentRenderer';
 
 interface CompanyDrawerProps {
   ticker: string | null;
@@ -55,7 +68,7 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
-  const [activeMainTab, setActiveMainTab] = useState<'OVERVIEW' | 'STATEMENTS' | 'FILING_VIEWER' | 'FILING_DIFF'>('OVERVIEW');
+  const [activeMainTab, setActiveMainTab] = useState<'OVERVIEW' | 'STATEMENTS' | 'FILING_VIEWER' | 'FILING_DIFF' | 'INSIDERS' | 'EVENTS_GOV'>('OVERVIEW');
 
   // Manual Width Resizing State (default to 50% of webpage width)
   const [drawerWidth, setDrawerWidth] = useState<number>(() => {
@@ -110,11 +123,28 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
   const [showFullNumbers, setShowFullNumbers] = useState<boolean>(false);
 
   // In-Platform Filing Viewer State
+  const [edgarForms, setEdgarForms] = useState<EdgarFormItem[]>([]);
+  const [readerForm, setReaderForm] = useState<string>('ALL');
+  const [readerPeriod, setReaderPeriod] = useState<string>('last_5_years');
+  const [readerStartDate, setReaderStartDate] = useState<string>('');
+  const [readerEndDate, setReaderEndDate] = useState<string>('');
+  const [readerFilings, setReaderFilings] = useState<SECFilingItem[]>([]);
+  const [isReaderFilingsLoading, setIsReaderFilingsLoading] = useState<boolean>(false);
   const [selectedAccession, setSelectedAccession] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('Item 1');
   const [filingContent, setFilingContent] = useState<FilingContentResponse | null>(null);
   const [isFilingLoading, setIsFilingLoading] = useState(false);
   const [filingSearch, setFilingSearch] = useState<string>('');
+  const [fullTextQuery, setFullTextQuery] = useState<string>('');
+  const [fullTextResults, setFullTextResults] = useState<FilingSearchResponse | null>(null);
+  const [isFullTextSearching, setIsFullTextSearching] = useState<boolean>(false);
+
+  // Stage 2: Insiders (Form 4) & Events / Governance (8-K / DEF 14A)
+  const [insiderData, setInsiderData] = useState<InsiderRadarResponse | null>(null);
+  const [isInsiderLoading, setIsInsiderLoading] = useState<boolean>(false);
+  const [eventsData, setEventsData] = useState<MaterialEventsResponse | null>(null);
+  const [governanceData, setGovernanceData] = useState<GovernanceResponse | null>(null);
+  const [isEventsGovLoading, setIsEventsGovLoading] = useState<boolean>(false);
 
   // Redline Diff State
   const [diffForm, setDiffForm] = useState<'10-K' | '10-Q'>('10-K');
@@ -132,6 +162,11 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
       setStatements(null);
       setFilingContent(null);
       setDiffResult(null);
+      setInsiderData(null);
+      setEventsData(null);
+      setGovernanceData(null);
+      setFullTextResults(null);
+      setReaderFilings([]);
       return;
     }
 
@@ -185,6 +220,95 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
       fetchStatements();
     }
   }, [activeMainTab, ticker, statements, isStatementsLoading]);
+
+  // Load EDGAR form catalog once
+  useEffect(() => {
+    fetch('/api/company/edgar-forms')
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d?.forms)) setEdgarForms(d.forms);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Load filtered filings list when entering FILING_VIEWER or changing filters
+  useEffect(() => {
+    if (activeMainTab === 'FILING_VIEWER' && ticker) {
+      const params = new URLSearchParams({ limit: '60' });
+      if (readerForm !== 'ALL') params.set('forms', readerForm);
+      if (readerPeriod !== 'custom') {
+        params.set('period', readerPeriod);
+      } else {
+        if (readerStartDate) params.set('start_date', readerStartDate);
+        if (readerEndDate) params.set('end_date', readerEndDate);
+      }
+      setIsReaderFilingsLoading(true);
+      fetch(`/api/company/${ticker}/filings?${params.toString()}`)
+        .then((r) => r.json())
+        .then((list: SECFilingItem[]) => {
+          if (Array.isArray(list)) {
+            setReaderFilings(list);
+            if (list.length > 0 && !list.some((f) => f.accession_number === selectedAccession)) {
+              setSelectedAccession(list[0].accession_number);
+            }
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsReaderFilingsLoading(false));
+    }
+  }, [activeMainTab, ticker, readerForm, readerPeriod, readerStartDate, readerEndDate]);
+
+  // Load Form 4 Insider Radar when entering INSIDERS tab
+  useEffect(() => {
+    if (activeMainTab === 'INSIDERS' && ticker && !insiderData && !isInsiderLoading) {
+      setIsInsiderLoading(true);
+      fetch(`/api/company/${ticker}/insider-trades`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => d && setInsiderData(d))
+        .catch(() => {})
+        .finally(() => setIsInsiderLoading(false));
+    }
+  }, [activeMainTab, ticker, insiderData, isInsiderLoading]);
+
+  // Load 8-K Material Events & DEF 14A Governance when entering EVENTS_GOV tab
+  useEffect(() => {
+    if (activeMainTab === 'EVENTS_GOV' && ticker && !eventsData && !isEventsGovLoading) {
+      setIsEventsGovLoading(true);
+      Promise.all([
+        fetch(`/api/company/${ticker}/material-events`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`/api/company/${ticker}/governance`).then((r) => (r.ok ? r.json() : null)),
+      ])
+        .then(([ev, gov]) => {
+          if (ev) setEventsData(ev);
+          if (gov) setGovernanceData(gov);
+        })
+        .catch(() => {})
+        .finally(() => setIsEventsGovLoading(false));
+    }
+  }, [activeMainTab, ticker, eventsData, isEventsGovLoading]);
+
+  const runFullTextSearch = async () => {
+    if (!ticker || fullTextQuery.trim().length < 2) return;
+    setIsFullTextSearching(true);
+    try {
+      const res = await fetch(`/api/company/${ticker}/search-filing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: fullTextQuery.trim(),
+          form: readerForm !== 'ALL' ? readerForm : '10-K',
+          accession_number: selectedAccession || null,
+        }),
+      });
+      if (res.ok) {
+        setFullTextResults(await res.json());
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsFullTextSearching(false);
+    }
+  };
 
   // Load Filing Content when accession or section changes
   useEffect(() => {
@@ -266,10 +390,15 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
 
   return (
     <div
-      className={`fixed inset-y-0 right-0 bg-terminal-panel border-l border-terminal-border z-30 shadow-2xl flex flex-col font-mono text-xs select-none transition-all duration-300 ${
-        isExpanded ? 'w-full sm:w-[94vw] lg:w-[1240px]' : 'w-full sm:w-[620px]'
-      }`}
+      className="fixed inset-y-0 right-0 bg-terminal-panel border-l border-terminal-border z-30 shadow-2xl flex flex-col font-mono text-xs select-none"
+      style={{ width: isExpanded ? '94vw' : drawerWidth }}
     >
+      {/* Drag Resize Handle */}
+      <div
+        onMouseDown={() => setIsDragging(true)}
+        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-terminal-cyan/40 transition-colors z-50"
+        title="Drag to resize panel"
+      />
       {/* 1. Master Title Header */}
       <div className="border-b border-terminal-border p-2.5 flex items-center justify-between bg-terminal-card">
         <div className="flex items-center gap-3">
@@ -355,7 +484,31 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
             }`}
           >
             <GitCompare className="w-3 h-3 text-purple-400" />
-            <span>REDLINE FILING DIFF</span>
+            <span>REDLINE DIFF</span>
+          </button>
+
+          <button
+            onClick={() => setActiveMainTab('INSIDERS')}
+            className={`px-3 py-1.5 rounded-t text-[11px] font-semibold flex items-center gap-1.5 transition-colors ${
+              activeMainTab === 'INSIDERS'
+                ? 'bg-terminal-card text-emerald-400 border-t-2 border-emerald-400'
+                : 'text-terminal-muted hover:text-terminal-text hover:bg-terminal-panel'
+            }`}
+          >
+            <UserCheck className="w-3 h-3 text-emerald-400" />
+            <span>INSIDERS (FORM 4)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveMainTab('EVENTS_GOV')}
+            className={`px-3 py-1.5 rounded-t text-[11px] font-semibold flex items-center gap-1.5 transition-colors ${
+              activeMainTab === 'EVENTS_GOV'
+                ? 'bg-terminal-card text-rose-400 border-t-2 border-rose-400'
+                : 'text-terminal-muted hover:text-terminal-text hover:bg-terminal-panel'
+            }`}
+          >
+            <Bell className="w-3 h-3 text-rose-400" />
+            <span>8-K &amp; PROXY</span>
           </button>
         </div>
       </div>
@@ -804,110 +957,271 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
         )}
 
         {/* =========================================================================
-            TAB 3: IN-PLATFORM SEC FILING VIEWER
+            TAB 3: IN-PLATFORM SEC FILING VIEWER (ENHANCED WITH FILTERS, BOOKMARKS & TABLES)
            ========================================================================= */}
         {activeMainTab === 'FILING_VIEWER' && (
           <div className="space-y-3">
-            {/* Filing Selector Controls Bar */}
-            <div className="bg-terminal-card p-3 rounded border border-terminal-border space-y-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {/* 1. Search & Filter Bar (Form Type + Period Preset / Date Range) */}
+            <div className="bg-terminal-card p-3 rounded border border-terminal-border space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
-                  <label className="text-[10px] text-terminal-muted block mb-1">SELECT FILING TO READ:</label>
+                  <label className="text-[10px] text-terminal-muted block mb-1">FORM TYPE (EDGAR DATA OBJECT):</label>
                   <select
-                    value={selectedAccession}
-                    onChange={(e) => setSelectedAccession(e.target.value)}
+                    value={readerForm}
+                    onChange={(e) => setReaderForm(e.target.value)}
                     className="w-full bg-terminal-bg border border-terminal-border rounded px-2 py-1 text-xs text-terminal-text focus:outline-none focus:border-terminal-cyan"
                   >
-                    {(data?.filings || []).map((f) => (
-                      <option key={f.accession_number} value={f.accession_number}>
-                        {f.form} // {f.filing_date} ({f.accession_number})
+                    <option value="ALL">ALL FORMS (10-K, 10-Q, 8-K, DEF 14A, 4)</option>
+                    {(edgarForms.length > 0 ? edgarForms : [
+                      { form: '10-K', object_name: 'TenK', category: 'Financials', description: 'Annual Report' },
+                      { form: '10-Q', object_name: 'TenQ', category: 'Financials', description: 'Quarterly Report' },
+                      { form: '8-K', object_name: 'CurrentReport', category: 'Events', description: 'Current Report' },
+                      { form: 'DEF 14A', object_name: 'ProxyStatement', category: 'Governance', description: 'Proxy Statement' },
+                      { form: '4', object_name: 'Ownership', category: 'Insiders', description: 'Insider Trading' },
+                      { form: '13F-HR', object_name: 'ThirteenF', category: 'Ownership', description: 'Institutional Holdings' },
+                    ]).map((ef) => (
+                      <option key={ef.form} value={ef.form} title={ef.description}>
+                        {ef.form} ({ef.object_name}) — {ef.description.split('—')[0].trim()}
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-terminal-muted block mb-1">SELECT ITEM / SECTION:</label>
+                  <label className="text-[10px] text-terminal-muted flex items-center gap-1 mb-1">
+                    <Calendar className="w-3 h-3" /> TIMEFRAME:
+                  </label>
                   <select
-                    value={selectedSection}
-                    onChange={(e) => setSelectedSection(e.target.value)}
+                    value={readerPeriod}
+                    onChange={(e) => setReaderPeriod(e.target.value)}
                     className="w-full bg-terminal-bg border border-terminal-border rounded px-2 py-1 text-xs text-terminal-text focus:outline-none focus:border-terminal-cyan"
                   >
-                    <option value="">FULL DOCUMENT TEXT</option>
-                    {(filingContent?.available_sections || []).map((sec) => (
-                      <option key={sec} value={sec}>
-                        {sec}
-                      </option>
-                    ))}
+                    <option value="last_quarter">Last Quarter (90d)</option>
+                    <option value="last_4_quarters">Last 4 Quarters (1Y)</option>
+                    <option value="last_year">Last Year</option>
+                    <option value="last_5_years">Last 5 Years</option>
+                    <option value="all">All Available</option>
+                    <option value="custom">Custom Date Range...</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-terminal-muted block mb-1">IN-SECTION HIGHLIGHT:</label>
+                  <div className="flex items-center gap-1.5">
+                    <Search className="w-3.5 h-3.5 text-terminal-muted shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Highlight in current view..."
+                      value={filingSearch}
+                      onChange={(e) => setFilingSearch(e.target.value)}
+                      className="bg-terminal-bg border border-terminal-border rounded px-2 py-1 text-xs text-terminal-text placeholder-terminal-muted/60 w-full focus:outline-none focus:border-terminal-cyan"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Text Search & External link */}
-              <div className="flex items-center justify-between pt-1 border-t border-terminal-border/40">
-                <div className="flex items-center gap-1.5 w-full max-w-sm">
-                  <Search className="w-3.5 h-3.5 text-terminal-muted" />
-                  <input
-                    type="text"
-                    placeholder="Search words in section..."
-                    value={filingSearch}
-                    onChange={(e) => setFilingSearch(e.target.value)}
-                    className="bg-terminal-bg border border-terminal-border rounded px-2 py-0.5 text-xs text-terminal-text placeholder-terminal-muted/60 w-full focus:outline-none focus:border-terminal-cyan"
-                  />
+              {readerPeriod === 'custom' && (
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-terminal-border/40">
+                  <div>
+                    <label className="text-[10px] text-terminal-muted block mb-0.5">FROM DATE:</label>
+                    <input
+                      type="date"
+                      value={readerStartDate}
+                      onChange={(e) => setReaderStartDate(e.target.value)}
+                      className="w-full bg-terminal-bg border border-terminal-border rounded px-2 py-1 text-xs text-terminal-text"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-terminal-muted block mb-0.5">TO DATE:</label>
+                    <input
+                      type="date"
+                      value={readerEndDate}
+                      onChange={(e) => setReaderEndDate(e.target.value)}
+                      className="w-full bg-terminal-bg border border-terminal-border rounded px-2 py-1 text-xs text-terminal-text"
+                    />
+                  </div>
                 </div>
-                {filingContent?.sec_url && (
-                  <a
-                    href={filingContent.sec_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-terminal-cyan hover:underline"
-                  >
-                    <span>SEC EDGAR INDEX</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
+              )}
+
+              {/* Scrollable Filing Selector List */}
+              <div className="pt-1 border-t border-terminal-border/40">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] text-terminal-muted">
+                    MATCHING FILINGS ({readerFilings.length}) {isReaderFilingsLoading ? '— LOADING...' : ''}
+                  </span>
+                  {filingContent?.sec_url && (
+                    <a
+                      href={filingContent.sec_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[10px] text-terminal-cyan hover:underline"
+                    >
+                      <span>SEC EDGAR INDEX</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+                <div className="max-h-28 overflow-y-auto border border-terminal-border rounded bg-terminal-bg divide-y divide-terminal-border/30">
+                  {readerFilings.length === 0 ? (
+                    <div className="p-2 text-center text-terminal-muted text-[11px]">
+                      {isReaderFilingsLoading ? 'Querying SEC EDGAR filings...' : 'No filings match selected filter.'}
+                    </div>
+                  ) : (
+                    readerFilings.map((f) => {
+                      const active = f.accession_number === selectedAccession;
+                      return (
+                        <button
+                          key={f.accession_number}
+                          onClick={() => setSelectedAccession(f.accession_number)}
+                          className={`w-full text-left px-2.5 py-1 flex items-center justify-between text-[11px] transition-colors ${
+                            active ? 'bg-terminal-card text-terminal-amber font-bold' : 'hover:bg-terminal-card/50 text-terminal-text'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="px-1.5 py-0.2 rounded bg-terminal-border text-[10px] text-terminal-cyan font-bold">
+                              {f.form}
+                            </span>
+                            <span>{f.filing_date}</span>
+                            <span className="text-terminal-muted truncate">{f.description}</span>
+                          </div>
+                          <span className="text-[10px] text-terminal-muted font-mono shrink-0 ml-2">{f.accession_number}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
+
+              {/* Full-Text Filing Search */}
+              <div className="flex items-center gap-2 pt-1 border-t border-terminal-border/40">
+                <input
+                  type="text"
+                  placeholder="Full-text search across all sections of this filing (e.g. 'material weakness', 'lease')..."
+                  value={fullTextQuery}
+                  onChange={(e) => setFullTextQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && runFullTextSearch()}
+                  className="bg-terminal-bg border border-terminal-border rounded px-2 py-1 text-xs text-terminal-text placeholder-terminal-muted/60 flex-1 focus:outline-none focus:border-terminal-amber"
+                />
+                <button
+                  onClick={runFullTextSearch}
+                  disabled={isFullTextSearching || fullTextQuery.trim().length < 2}
+                  className="px-2.5 py-1 rounded bg-amber-600/80 hover:bg-amber-500 text-white font-bold text-[11px] disabled:opacity-50"
+                >
+                  {isFullTextSearching ? 'SEARCHING...' : 'SEARCH FILING'}
+                </button>
+              </div>
+
+              {fullTextResults && (
+                <div className="p-2 rounded bg-terminal-bg border border-amber-700/40 space-y-1 max-h-36 overflow-y-auto">
+                  <div className="flex items-center justify-between text-[10px] text-amber-300 font-bold">
+                    <span>{fullTextResults.total_hits} HITS FOR &quot;{fullTextResults.query}&quot;</span>
+                    <button onClick={() => setFullTextResults(null)} className="text-terminal-muted hover:text-terminal-text">CLEAR</button>
+                  </div>
+                  {fullTextResults.hits.map((h, idx) => (
+                    <div key={idx} className="text-[10.5px] border-t border-terminal-border/30 pt-1">
+                      <span className="text-terminal-cyan font-bold">[{h.section}]</span>{' '}
+                      <span className="text-terminal-muted">{h.snippet}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Document Content Display Container */}
+            {/* 2. Main Reader Layout: Left Section Bookmarks + Right Document & Attachments */}
             {isFilingLoading ? (
               <div className="flex flex-col items-center justify-center py-24 text-terminal-muted space-y-2">
                 <div className="animate-spin w-6 h-6 border-2 border-terminal-amber border-t-transparent rounded-full" />
-                <span>EXTRACTING FILING SECTION FROM SEC REPOSITORY...</span>
+                <span>EXTRACTING STRUCTURED FILING &amp; TABLES FROM SEC...</span>
               </div>
             ) : !filingContent ? (
               <div className="p-8 text-center text-terminal-muted border border-terminal-border rounded bg-terminal-card">
-                Select a filing above to read sections directly in this terminal.
+                Select a filing above to read sections and tables directly in this terminal.
               </div>
             ) : (
-              <div className="border border-terminal-border rounded bg-terminal-card p-4 space-y-2">
-                <div className="flex items-center justify-between border-b border-terminal-border pb-2 text-[10px]">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded font-bold bg-amber-950 text-amber-400 border border-amber-600/50">
-                      {filingContent.form}
-                    </span>
-                    <span className="text-terminal-text font-bold">
-                      {filingContent.selected_section || 'DOCUMENT TEXT'}
-                    </span>
-                    <span className="text-terminal-muted">Filed {filingContent.filing_date}</span>
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+                {/* Left Sidebar: Section Bookmarks + Attachments */}
+                <div className="lg:col-span-1 space-y-3">
+                  <div className="border border-terminal-border rounded bg-terminal-card overflow-hidden">
+                    <div className="px-2.5 py-1.5 bg-terminal-bg border-b border-terminal-border flex items-center gap-1.5 text-[10px] font-bold text-terminal-amber">
+                      <Bookmark className="w-3 h-3" />
+                      <span>SECTION BOOKMARKS</span>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto divide-y divide-terminal-border/30">
+                      <button
+                        onClick={() => setSelectedSection('')}
+                        className={`w-full text-left px-2.5 py-1.5 text-[11px] transition-colors ${
+                          selectedSection === '' ? 'bg-terminal-bg text-terminal-amber font-bold' : 'text-terminal-muted hover:text-terminal-text'
+                        }`}
+                      >
+                        FULL DOCUMENT OVERVIEW
+                      </button>
+                      {(filingContent.section_bookmarks && filingContent.section_bookmarks.length > 0
+                        ? filingContent.section_bookmarks
+                        : (filingContent.available_sections || []).map((s) => ({ id: s, title: s }))
+                      ).map((bm) => (
+                        <button
+                          key={bm.id}
+                          onClick={() => setSelectedSection(bm.id)}
+                          className={`w-full text-left px-2.5 py-1.5 text-[11px] transition-colors ${
+                            selectedSection === bm.id
+                              ? 'bg-terminal-bg text-terminal-amber font-bold border-l-2 border-terminal-amber'
+                              : 'text-terminal-muted hover:text-terminal-text hover:bg-terminal-bg/40'
+                          }`}
+                        >
+                          {bm.title}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <span className="text-terminal-muted font-mono">{filingContent.accession_number}</span>
+
+                  {/* Attachments / Exhibits */}
+                  {filingContent.attachments && filingContent.attachments.length > 0 && (
+                    <div className="border border-terminal-border rounded bg-terminal-card overflow-hidden">
+                      <div className="px-2.5 py-1.5 bg-terminal-bg border-b border-terminal-border flex items-center gap-1.5 text-[10px] font-bold text-terminal-cyan">
+                        <Paperclip className="w-3 h-3" />
+                        <span>ATTACHMENTS ({filingContent.attachments.length})</span>
+                      </div>
+                      <div className="max-h-56 overflow-y-auto divide-y divide-terminal-border/30">
+                        {filingContent.attachments.map((att, idx) => (
+                          <a
+                            key={idx}
+                            href={att.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block px-2.5 py-1.5 hover:bg-terminal-bg/60 transition-colors"
+                          >
+                            <div className="flex items-center justify-between text-[10.5px]">
+                              <span className="text-terminal-cyan font-bold truncate">{att.doc_type || att.document}</span>
+                              <ExternalLink className="w-2.5 h-2.5 text-terminal-muted shrink-0" />
+                            </div>
+                            <div className="text-[10px] text-terminal-muted truncate">{att.description || att.document}</div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="max-h-[540px] overflow-y-auto text-[11px] leading-relaxed text-terminal-text font-mono whitespace-pre-wrap select-text p-2 bg-terminal-bg rounded border border-terminal-border/40">
-                  {filingSearch
-                    ? filingContent.content
-                        .split(new RegExp(`(${filingSearch})`, 'gi'))
-                        .map((part, i) =>
-                          part.toLowerCase() === filingSearch.toLowerCase() ? (
-                            <mark key={i} className="bg-yellow-500/40 text-yellow-200 px-0.5 rounded font-bold">
-                              {part}
-                            </mark>
-                          ) : (
-                            part
-                          )
-                        )
-                    : filingContent.content}
+                {/* Right Main Reading Pane */}
+                <div className="lg:col-span-3 border border-terminal-border rounded bg-terminal-card p-4 space-y-2">
+                  <div className="flex items-center justify-between border-b border-terminal-border pb-2 text-[10px]">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded font-bold bg-amber-950 text-amber-400 border border-amber-600/50">
+                        {filingContent.form}
+                      </span>
+                      <span className="text-terminal-text font-bold">
+                        {(filingContent.section_bookmarks || []).find((b) => b.id === filingContent.selected_section)?.title ||
+                          filingContent.selected_section ||
+                          'FULL DOCUMENT'}
+                      </span>
+                      <span className="text-terminal-muted">Filed {filingContent.filing_date}</span>
+                    </div>
+                    <span className="text-terminal-muted font-mono">{filingContent.accession_number}</span>
+                  </div>
+
+                  <div className="max-h-[600px] overflow-y-auto p-3 bg-terminal-bg rounded border border-terminal-border/40">
+                    <FilingContentRenderer content={filingContent.content} searchQuery={filingSearch} />
+                  </div>
                 </div>
               </div>
             )}
@@ -929,8 +1243,8 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                     onChange={(e) => setDiffForm(e.target.value as any)}
                     className="w-full bg-terminal-bg border border-terminal-border rounded px-2 py-1 text-xs text-terminal-text focus:outline-none focus:border-purple-400"
                   >
-                    <option value="10-K">10-K (Annual)</option>
-                    <option value="10-Q">10-Q (Quarterly)</option>
+                    <option value="10-K">10-K (Annual Report)</option>
+                    <option value="10-Q">10-Q (Quarterly Report)</option>
                   </select>
                 </div>
 
@@ -975,18 +1289,20 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                     onChange={(e) => setDiffSection(e.target.value)}
                     className="w-full bg-terminal-bg border border-terminal-border rounded px-2 py-1 text-xs text-terminal-text focus:outline-none focus:border-purple-400"
                   >
-                    <option value="Item 1">Item 1 (Business)</option>
-                    <option value="Item 1A">Item 1A (Risk Factors)</option>
-                    <option value="Item 7">Item 7 (MD&A)</option>
-                    <option value="Item 3">Item 3 (Legal Proceedings)</option>
-                    <option value="Item 8">Item 8 (Financial Statements)</option>
+                    <option value="Item 1">Item 1 - Business</option>
+                    <option value="Item 1A">Item 1A - Risk Factors</option>
+                    <option value="Item 1C">Item 1C - Cybersecurity</option>
+                    <option value="Item 3">Item 3 - Legal Proceedings</option>
+                    <option value="Item 7">Item 7 - MD&amp;A</option>
+                    <option value="Item 7A">Item 7A - Market Risk</option>
+                    <option value="Item 8">Item 8 - Financial Statements</option>
                   </select>
                 </div>
               </div>
 
               <div className="flex items-center justify-between pt-1 border-t border-terminal-border/40">
                 <div className="text-[10px] text-terminal-muted">
-                  Runs word-level SequenceMatcher to detect modifications, additions, and deletions between fiscal filings.
+                  Preserves paragraph &amp; table line structure while detecting word-level additions and deletions.
                 </div>
                 <button
                   onClick={runRedlineDiff}
@@ -1018,7 +1334,6 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
               </div>
             ) : (
               <div className="border border-terminal-border rounded bg-terminal-card p-3 space-y-3">
-                {/* Statistics Bar */}
                 <div className="flex items-center justify-between p-2 rounded bg-terminal-bg border border-terminal-border">
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-terminal-text">{diffResult.section} COMPARISON</span>
@@ -1044,35 +1359,210 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                   </div>
                 </div>
 
-                {/* Token Stream Text Area */}
-                <div className="max-h-[500px] overflow-y-auto p-3 rounded bg-terminal-bg border border-terminal-border/40 text-[11px] font-mono leading-relaxed select-text whitespace-pre-wrap">
+                <div className="max-h-[560px] overflow-y-auto p-3 rounded bg-terminal-bg border border-terminal-border/40 text-[11.5px] font-mono leading-relaxed select-text whitespace-pre-wrap">
                   {diffResult.tokens.map((token, i) => {
                     if (token.type === 'equal') {
-                      return <span key={i} className="text-terminal-text">{token.text} </span>;
+                      return <span key={i} className="text-terminal-text">{token.text}</span>;
                     } else if (token.type === 'added') {
                       return (
                         <span
                           key={i}
-                          className="bg-emerald-950/80 text-emerald-300 font-bold px-1 py-0.5 rounded border border-emerald-600/60 mx-0.5 inline-block"
+                          className="bg-emerald-950/80 text-emerald-300 font-bold px-1 py-0.5 rounded border border-emerald-600/60 mx-0.5"
                           title="Added in newer filing"
                         >
-                          {token.text}{' '}
+                          {token.text}
                         </span>
                       );
                     } else {
                       return (
                         <span
                           key={i}
-                          className="bg-rose-950/80 text-rose-300 line-through px-1 py-0.5 rounded border border-rose-700/60 mx-0.5 inline-block opacity-80"
+                          className="bg-rose-950/80 text-rose-300 line-through px-1 py-0.5 rounded border border-rose-700/60 mx-0.5 opacity-80"
                           title="Removed from prior filing"
                         >
-                          {token.text}{' '}
+                          {token.text}
                         </span>
                       );
                     }
                   })}
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* =========================================================================
+            TAB 5: STAGE 2 — INSIDER TRADING & CLUSTER BUYING RADAR (FORM 4)
+           ========================================================================= */}
+        {activeMainTab === 'INSIDERS' && (
+          <div className="space-y-3">
+            {isInsiderLoading ? (
+              <div className="flex flex-col items-center justify-center py-24 text-terminal-muted space-y-2">
+                <div className="animate-spin w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full" />
+                <span>PARSING FORM 4 INSIDER OWNERSHIP FILINGS...</span>
+              </div>
+            ) : !insiderData ? (
+              <div className="p-6 text-center text-terminal-muted border border-terminal-border rounded bg-terminal-card">
+                No Form 4 insider data available for {ticker}.
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-terminal-card p-3 rounded border border-terminal-border">
+                  <div>
+                    <div className="text-[10px] text-terminal-muted">30-DAY CLUSTER SIGNAL</div>
+                    {insiderData.cluster_buying_detected ? (
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500 font-bold text-[11px]">
+                        CLUSTER BUYING DETECTED ({insiderData.cluster_buyers_count} INSIDERS)
+                      </span>
+                    ) : (
+                      <span className="inline-block mt-1 text-terminal-muted text-[11px]">
+                        No 30d cluster ({insiderData.cluster_buyers_count} buyers)
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-terminal-muted">OPEN MARKET PURCHASES (RECENT)</div>
+                    <div className="text-sm font-bold text-terminal-green tabular-numbers">
+                      {formatCurrencyCompact(insiderData.total_purchases_usd)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-terminal-muted">OPEN MARKET SALES (RECENT)</div>
+                    <div className="text-sm font-bold text-terminal-red tabular-numbers">
+                      {formatCurrencyCompact(insiderData.total_sales_usd)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-terminal-border rounded bg-terminal-card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[11px] tabular-numbers border-collapse">
+                      <thead>
+                        <tr className="bg-terminal-bg border-b border-terminal-border text-terminal-muted">
+                          <th className="py-1.5 px-2.5 text-left">DATE</th>
+                          <th className="py-1.5 px-2.5 text-left">INSIDER</th>
+                          <th className="py-1.5 px-2.5 text-center">CODE</th>
+                          <th className="py-1.5 px-2.5 text-right">SHARES</th>
+                          <th className="py-1.5 px-2.5 text-right">PRICE</th>
+                          <th className="py-1.5 px-2.5 text-right">VALUE</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-terminal-border/30">
+                        {insiderData.transactions.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="p-4 text-center text-terminal-muted">No recent Form 4 transactions parsed.</td>
+                          </tr>
+                        ) : (
+                          insiderData.transactions.map((tx, idx) => (
+                            <tr key={idx} className="hover:bg-terminal-bg/60">
+                              <td className="py-1 px-2.5 text-terminal-muted">{tx.transaction_date || tx.filing_date}</td>
+                              <td className="py-1 px-2.5">
+                                <div className="text-terminal-text font-bold">{tx.insider_name}</div>
+                                {tx.title && <div className="text-[10px] text-terminal-muted truncate max-w-[180px]">{tx.title}</div>}
+                              </td>
+                              <td className="py-1 px-2.5 text-center">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    tx.transaction_code === 'P'
+                                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-600/50'
+                                      : tx.transaction_code === 'S'
+                                      ? 'bg-rose-950 text-rose-300 border border-rose-600/50'
+                                      : 'bg-terminal-border text-terminal-muted'
+                                  }`}
+                                >
+                                  {tx.transaction_code === 'P' ? 'BUY (P)' : tx.transaction_code === 'S' ? 'SELL (S)' : tx.transaction_code}
+                                </span>
+                              </td>
+                              <td className="py-1 px-2.5 text-right">{tx.shares.toLocaleString()}</td>
+                              <td className="py-1 px-2.5 text-right">{tx.price ? `$${tx.price.toFixed(2)}` : '—'}</td>
+                              <td className="py-1 px-2.5 text-right font-bold">{tx.value_usd ? formatCurrencyCompact(tx.value_usd) : '—'}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* =========================================================================
+            TAB 6: STAGE 2 — FORM 8-K MATERIAL EVENTS & DEF 14A GOVERNANCE
+           ========================================================================= */}
+        {activeMainTab === 'EVENTS_GOV' && (
+          <div className="space-y-4">
+            {isEventsGovLoading ? (
+              <div className="flex flex-col items-center justify-center py-24 text-terminal-muted space-y-2">
+                <div className="animate-spin w-6 h-6 border-2 border-rose-400 border-t-transparent rounded-full" />
+                <span>LOADING FORM 8-K EVENTS &amp; DEF 14A PROXY...</span>
+              </div>
+            ) : (
+              <>
+                {/* 8-K Material Events */}
+                <div className="border border-terminal-border rounded bg-terminal-card p-3 space-y-2">
+                  <div className="flex items-center gap-2 border-b border-terminal-border pb-1.5">
+                    <Bell className="w-3.5 h-3.5 text-rose-400" />
+                    <span className="font-bold text-terminal-text">FORM 8-K MATERIAL CORPORATE EVENTS</span>
+                  </div>
+                  {!eventsData || eventsData.events.length === 0 ? (
+                    <div className="text-terminal-muted text-[11px] py-2">No recent Form 8-K filings found.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {eventsData.events.map((ev, idx) => (
+                        <div key={idx} className="p-2.5 rounded bg-terminal-bg border border-terminal-border/50 space-y-1">
+                          <div className="flex items-center justify-between text-[10.5px]">
+                            <span className="font-bold text-terminal-cyan">{ev.filing_date} // {ev.accession_number}</span>
+                            {ev.sec_url && (
+                              <a href={ev.sec_url} target="_blank" rel="noopener noreferrer" className="text-terminal-cyan hover:underline flex items-center gap-1">
+                                <span>SEC 8-K</span> <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                          {ev.items.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {ev.items.map((it, i) => (
+                                <span key={i} className="px-1.5 py-0.5 rounded bg-rose-950/60 text-rose-300 border border-rose-700/40 text-[10px]">
+                                  {it}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {ev.summary && <div className="text-[11px] text-terminal-muted line-clamp-3">{ev.summary}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* DEF 14A Proxy Governance */}
+                <div className="border border-terminal-border rounded bg-terminal-card p-3 space-y-2">
+                  <div className="flex items-center justify-between border-b border-terminal-border pb-1.5">
+                    <div className="flex items-center gap-2">
+                      <Scale className="w-3.5 h-3.5 text-terminal-amber" />
+                      <span className="font-bold text-terminal-text">DEF 14A PROXY &amp; EXECUTIVE ALIGNMENT</span>
+                    </div>
+                    {governanceData?.sec_url && (
+                      <a href={governanceData.sec_url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-terminal-cyan hover:underline flex items-center gap-1">
+                        <span>OPEN DEF 14A</span> <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  {governanceData ? (
+                    <div className="space-y-2">
+                      <div className="text-[10.5px] text-terminal-muted">
+                        Filed: <span className="text-terminal-text font-bold">{governanceData.filing_date || 'N/A'}</span> ({governanceData.accession_number})
+                      </div>
+                      <div className="max-h-72 overflow-y-auto p-2.5 rounded bg-terminal-bg border border-terminal-border/40">
+                        <FilingContentRenderer content={governanceData.summary} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-terminal-muted text-[11px]">No DEF 14A proxy summary available.</div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         )}

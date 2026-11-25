@@ -3,18 +3,12 @@ import sys
 import os
 import pandas as pd
 
+from src.utils.storage import get_company_data_csv
+
 router = APIRouter(prefix="/health", tags=["Health"])
 
 def get_cache_file() -> str:
-    candidates = [
-        "output/company_data.csv",
-        "output/data/data/company_data.csv",
-        "output/data/company_data.csv"
-    ]
-    for path in candidates:
-        if os.path.exists(path) and os.path.getsize(path) > 100:
-            return path
-    return "output/company_data.csv"
+    return get_company_data_csv()
 
 @router.get("")
 def health_check():

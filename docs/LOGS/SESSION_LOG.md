@@ -215,3 +215,24 @@
 7. **Testing & Build**:
    - Frontend rebuilt via `npm run build` (210.87 kB).
    - All **32 pytest tests pass cleanly**.
+
+---
+
+## Session 08 - Chunks 7-11: Storage Resilience, Filing Reader Upgrade & Stage 2 Features
+- **Date**: 2026-11-25
+- **Goal**: Fix unmounted T3 SSD `PermissionError`, reconcile `output/` folders, upgrade SEC Filing Reader & Redline Diff table rendering, implement Stage 2 (Superinvestors 13F, Form 4 Insider Radar, Form 8-K Events, DEF 14A Proxy, Full-Text Search), and update Mac/Windows README.
+
+### Actions Completed
+1. **Storage Resilience & Data Reconciliation (Chunk 7)**:
+   - Created `src/utils/storage.py` (`resolve_edgar_paths`, `is_path_available`, `get_company_data_csv`, `get_users_file`).
+   - Prevented `os.makedirs('/Volumes/T3/...')` crash when external SSD is unplugged; falls back to `output/edgar_data/` and `output/edgar_cache/` with live SEC HTTP queries (`use_local_storage(False)` when local storage is unpopulated).
+   - Reconciled duplicate `output/data/data/` directories into canonical `output/` (`company_data.csv`, `users.json`, `edgar_data/`, `edgar_cache/`).
+2. **SEC Filing Reader & Redline Diff Upgrade (Chunk 8)**:
+   - Completed drag-resize handle in `CompanyDrawer.tsx` (50% default width + manual drag).
+   - Added `/api/company/edgar-forms` catalog, period presets (`last_quarter`, `last_4_quarters`, `last_year`, `last_5_years`, custom date range), `section_bookmarks` with full descriptions (`Item 1 - Business`, etc.), and `attachments` links.
+   - Created `FilingContentRenderer.tsx` to render Markdown tables from `edgartools` as crisp monospace HTML tables; preserved newline structure in Redline Diff tokens.
+3. **Stage 2 Features (Chunks 9-10)**:
+   - Added `src/api/routes/superinvestors.py` & `SuperinvestorsView.tsx` with 12 curated Value Superinvestors (Buffett, Klarman, Li Lu, Pabrai, Marks, Ackman, Einhorn, Greenblatt, Watsa, Akre, Gayner, Tweedy Browne) and 13F-HR QoQ tracking.
+   - Added Form 4 Insider Radar (`/insider-trades`) with 30-day Cluster Buying detection, Form 8-K Material Events (`/material-events`), DEF 14A Governance (`/governance`), and Full-Text Filing Search (`/search-filing`).
+4. **Docs & Testing (Chunk 11)**:
+   - Updated `README.md` with full macOS & Windows setup instructions, `docs/PLAN.md`, and `tests/test_api.py`.

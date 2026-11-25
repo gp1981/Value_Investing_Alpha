@@ -90,16 +90,30 @@ class CompanyStatementsResponse(BaseModel):
     income_statement: Optional[StatementReport] = Field(default=None, description="Multi-period Income Statement")
     cash_flow: Optional[StatementReport] = Field(default=None, description="Multi-period Statement of Cash Flows")
 
+class FilingSectionItem(BaseModel):
+    """Section bookmark with identifier and human-readable description."""
+    id: str = Field(..., description="Section identifier (e.g. 'Item 1')")
+    title: str = Field(..., description="Full descriptive label (e.g. 'Item 1 - Business')")
+
+class FilingAttachmentItem(BaseModel):
+    """Official SEC filing attachment / exhibit link."""
+    document: str = Field(..., description="Filename of the attachment")
+    description: str = Field(default="", description="Attachment description")
+    doc_type: str = Field(default="", description="Exhibit or document type (e.g. EX-10.1)")
+    url: str = Field(..., description="Direct SEC EDGAR URL")
+
 class FilingContentResponse(BaseModel):
-    """Structured text content and sections of a regulatory SEC filing."""
+    """Structured text content, sections, and attachments of a regulatory SEC filing."""
     ticker: str = Field(..., description="Ticker symbol")
     accession_number: str = Field(..., description="SEC accession identifier")
-    form: str = Field(..., description="Filing type (e.g. 10-K, 10-Q, 8-K, 13F)")
+    form: str = Field(..., description="Filing type (e.g. 10-K, 10-Q, 8-K, 13F-HR)")
     filing_date: str = Field(..., description="Filing date")
     report_date: Optional[str] = Field(default=None, description="Report date")
-    available_sections: List[str] = Field(default_factory=list, description="List of recognized sections/items in document")
+    available_sections: List[str] = Field(default_factory=list, description="List of recognized section IDs")
+    section_bookmarks: List[FilingSectionItem] = Field(default_factory=list, description="Descriptive section bookmarks")
+    attachments: List[FilingAttachmentItem] = Field(default_factory=list, description="Exhibits and attachments")
     selected_section: Optional[str] = Field(default=None, description="Currently displayed section/item")
-    content: str = Field(..., description="Extracted clean text content of the selected section or document")
+    content: str = Field(..., description="Extracted clean markdown/text content of the selected section or document")
     sec_url: str = Field(..., description="Official SEC EDGAR index URL")
 
 class FilingDiffRequest(BaseModel):
@@ -127,3 +141,75 @@ class FilingDiffResponse(BaseModel):
     words_added: int = Field(..., description="Count of newly added words")
     words_removed: int = Field(..., description="Count of deleted/modified words")
     tokens: List[DiffToken] = Field(default_factory=list, description="Inline token stream with equal/added/removed tags")
+
+
+class InsiderTransactionItem(BaseModel):
+    """Form 4 insider transaction."""
+    filing_date: str
+    transaction_date: str = ""
+    insider_name: str
+    title: str = ""
+    transaction_code: str = Field(..., description="P=Purchase, S=Sale, M=Exercise, etc.")
+    shares: float = 0.0
+    price: Optional[float] = None
+    value_usd: Optional[float] = None
+    sec_url: str = ""
+
+
+class InsiderRadarResponse(BaseModel):
+    """Form 4 insider trading summary with 30-day Cluster Buying detection."""
+    ticker: str
+    cluster_buying_detected: bool = False
+    cluster_buyers_count: int = 0
+    total_purchases_usd: float = 0.0
+    total_sales_usd: float = 0.0
+    transactions: List[InsiderTransactionItem] = Field(default_factory=list)
+
+
+class MaterialEventItem(BaseModel):
+    """Form 8-K material corporate event."""
+    filing_date: str
+    accession_number: str
+    items: List[str] = Field(default_factory=list)
+    summary: str = ""
+    sec_url: str = ""
+
+
+class MaterialEventsResponse(BaseModel):
+    """Recent Form 8-K material events for a company."""
+    ticker: str
+    events: List[MaterialEventItem] = Field(default_factory=list)
+
+
+class GovernanceResponse(BaseModel):
+    """DEF 14A proxy statement & executive alignment summary."""
+    ticker: str
+    filing_date: str = ""
+    accession_number: str = ""
+    sec_url: str = ""
+    summary: str = ""
+    compensation_rows: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class FilingSearchRequest(BaseModel):
+    """Full-text keyword search request within a filing."""
+    query: str = Field(..., min_length=2)
+    form: str = Field(default="10-K")
+    accession_number: Optional[str] = None
+
+
+class FilingSearchHit(BaseModel):
+    """Matching snippet from filing full-text search."""
+    section: str
+    snippet: str
+
+
+class FilingSearchResponse(BaseModel):
+    """Full-text search results across a company's SEC filing."""
+    ticker: str
+    form: str
+    filing_date: str
+    accession_number: str
+    query: str
+    total_hits: int
+    hits: List[FilingSearchHit] = Field(default_factory=list)

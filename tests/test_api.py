@@ -135,3 +135,32 @@ def test_auth_register_and_me():
 def test_auth_me_unauthorized():
     response = client.get("/api/auth/me")
     assert response.status_code == 401
+
+
+def test_storage_fallback_when_unmounted():
+    from src.utils.storage import resolve_edgar_paths, is_path_available
+    assert is_path_available("/Volumes/NON_EXISTENT_VOLUME_XYZ/edgartools") is False
+    data_dir, cache_dir, using_ext = resolve_edgar_paths("/Volumes/NON_EXISTENT_VOLUME_XYZ/edgartools")
+    assert using_ext is False
+    assert data_dir.endswith("output/edgar_data")
+    assert cache_dir.endswith("output/edgar_cache")
+
+
+def test_edgar_forms_catalog():
+    response = client.get("/api/company/edgar-forms")
+    assert response.status_code == 200
+    forms = response.json().get("forms", [])
+    form_codes = [f["form"] for f in forms]
+    assert "10-K" in form_codes
+    assert "10-Q" in form_codes
+    assert "8-K" in form_codes
+    assert "13F-HR" in form_codes
+
+
+def test_superinvestors_list():
+    response = client.get("/api/superinvestors/list")
+    assert response.status_code == 200
+    investors = response.json()
+    assert len(investors) >= 10
+    ciks = [i["cik"] for i in investors]
+    assert "0001067983" in ciks  # Berkshire Hathaway / Warren Buffett
