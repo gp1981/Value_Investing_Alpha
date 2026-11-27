@@ -32,7 +32,13 @@ from src.api.schemas.company import (
     FilingSearchRequest,
     FilingSearchHit,
     FilingSearchResponse,
+    HorizonMetric,
+    NonRecurringItem,
+    NonRecurringResponse,
+    SeasonalityQuarterPoint,
+    SeasonalityResponse,
 )
+from src.engine.horizon_metrics import compute_company_horizon_metrics
 from src.api.deps import get_integrator, get_sec_provider
 from src.engine.integrator import DataIntegrator
 from src.data.sec_provider import SECProvider
@@ -164,6 +170,7 @@ def _dataframe_to_statement_report(df: Optional[pd.DataFrame]) -> Optional[State
 @router.get("/{ticker}", response_model=CompanyDetailResponse)
 def get_company_details(
     ticker: str,
+    refresh: bool = Query(default=False, description="Bypass memory cache and re-fetch live from SEC"),
     integrator: DataIntegrator = Depends(get_integrator)
 ):
     """
@@ -175,8 +182,9 @@ def get_company_details(
     clean_ticker = ticker.upper().strip()
     
     # 1. Fast Cache Hit
-    if clean_ticker in _company_cache:
-        return _company_cache[clean_ticker]
+    if not refresh and clean_ticker in _company_cache:
+        cached = _company_cache[clean_ticker].model_copy(update={"data_source": "MEMORY CACHE"})
+        return cached
     
     fs = None
     md = None
@@ -346,6 +354,10 @@ def get_company_details(
     except Exception:
         filings_list = []
 
+    origin_label = "LOCAL STORAGE" if integrator.sec.is_storage_populated() else "LIVE SEC EDGAR"
+    fcff_ttm, mc_to_fcff_ttm, fcff_5y_avg, mc_to_fcff_5y_avg, h_metrics = compute_company_horizon_metrics(
+        clean_ticker, fs_dict, md.market_cap
+    )
     res = CompanyDetailResponse(
         ticker=clean_ticker,
         company_name=fs.company_name or clean_ticker,
@@ -360,7 +372,13 @@ def get_company_details(
         dcf=dcf_details,
         safety=safety_details,
         financial_statement=fs_dict,
-        filings=filings_list
+        filings=filings_list,
+        data_source=origin_label,
+        fcff_ttm=fcff_ttm,
+        mc_to_fcff_ttm=mc_to_fcff_ttm,
+        fcff_5y_avg=fcff_5y_avg,
+        mc_to_fcff_5y_avg=mc_to_fcff_5y_avg,
+        horizon_metrics=[HorizonMetric(**m) for m in h_metrics],
     )
     
     # Store in fast memory cache
@@ -368,58 +386,87 @@ def get_company_details(
     return res
 
 @router.get("/{ticker}/statements", response_model=CompanyStatementsResponse)
-def get_company_multiperiod_statements(ticker: str):
+def get_company_multiperiod_statements(
+    ticker: str,
+    periods: int = Query(default=10, ge=3, le=12),
+    include_quarterly: bool = Query(default=True),
+    refresh: bool = Query(default=False)
+):
     """
-    Retrieve comprehensive multi-period Balance Sheet (BS), Income Statement (IS),
-    and Cash Flow Statement (CF) across fiscal years (e.g. FY 2026, 2025, 2024, 2023)
-    powered by edgartools MultiPeriodStatement rendering. Cached for instant lookups.
+    Retrieve up to 10 years of annual and quarterly Balance Sheet (BS), Income Statement (IS),
+    and Cash Flow Statement (CF), plus per-period diluted/floating shares for $/share conversion.
     """
     clean_ticker = ticker.upper().strip()
-    
-    # Check cache
-    if clean_ticker in _statements_cache:
-        return _statements_cache[clean_ticker]
-        
+    cache_key = f"{clean_ticker}_{periods}_{include_quarterly}"
+
+    if not refresh and cache_key in _statements_cache:
+        return _statements_cache[cache_key]
+
     try:
         comp = edgar.Company(clean_ticker)
-        
-        # 1. Balance Sheet
-        bs_report = None
-        try:
-            stmt_bs = comp.balance_sheet()
-            if stmt_bs:
-                bs_report = _dataframe_to_statement_report(stmt_bs.to_dataframe())
-        except Exception:
-            bs_report = None
 
-        # 2. Income Statement
-        is_report = None
-        try:
-            stmt_is = comp.income_statement()
-            if stmt_is:
-                is_report = _dataframe_to_statement_report(stmt_is.to_dataframe())
-        except Exception:
-            is_report = None
+        def _fetch_stmt(fn, **kw):
+            try:
+                stmt = fn(**kw)
+                return _dataframe_to_statement_report(stmt.to_dataframe()) if stmt else None
+            except Exception:
+                return None
 
-        # 3. Cash Flow Statement
-        cf_report = None
+        bs_report = _fetch_stmt(comp.balance_sheet, periods=periods)
+        is_report = _fetch_stmt(comp.income_statement, periods=periods)
+        cf_report = _fetch_stmt(comp.cash_flow_statement, periods=periods)
+
+        q_bs_report = None
+        q_is_report = None
+        q_cf_report = None
+        if include_quarterly:
+            q_periods = min(periods * 4, 40)
+            q_bs_report = _fetch_stmt(comp.balance_sheet, periods=q_periods, annual=False)
+            q_is_report = _fetch_stmt(comp.income_statement, periods=q_periods, annual=False)
+            q_cf_report = _fetch_stmt(comp.cash_flow_statement, periods=q_periods, annual=False)
+
+        # Extract per-period shares for $/Share toggle
+        shares_by_period: Dict[str, float] = {}
+        for rep in (is_report, q_is_report):
+            if not rep:
+                continue
+            for row in rep.rows:
+                c_low = row.concept.lower()
+                l_low = row.label.lower()
+                if "dilutedshares" in c_low or "weightedaveragenumberofdilutedshares" in c_low or "diluted" in l_low and "share" in l_low:
+                    for p, v in row.values.items():
+                        if v and v > 0 and p not in shares_by_period:
+                            shares_by_period[p] = float(v)
+                    if shares_by_period:
+                        break
+
+        latest_floating: Optional[float] = None
         try:
-            stmt_cf = comp.cash_flow_statement()
-            if stmt_cf:
-                cf_report = _dataframe_to_statement_report(stmt_cf.to_dataframe())
+            import yfinance as yf
+            info = yf.Ticker(clean_ticker).info or {}
+            latest_floating = float(info.get("floatShares") or info.get("sharesOutstanding") or 0) or None
         except Exception:
-            cf_report = None
+            latest_floating = None
+
+        if not latest_floating and shares_by_period:
+            first_p = next(iter(shares_by_period))
+            latest_floating = shares_by_period[first_p]
 
         res = CompanyStatementsResponse(
             ticker=clean_ticker,
             company_name=comp.name if hasattr(comp, "name") else clean_ticker,
             balance_sheet=bs_report,
             income_statement=is_report,
-            cash_flow=cf_report
+            cash_flow=cf_report,
+            quarterly_balance_sheet=q_bs_report,
+            quarterly_income_statement=q_is_report,
+            quarterly_cash_flow=q_cf_report,
+            shares_by_period=shares_by_period,
+            latest_floating_shares=latest_floating,
         )
-        _statements_cache[clean_ticker] = res
+        _statements_cache[cache_key] = res
         return res
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -874,8 +921,15 @@ def get_material_events(ticker: str):
                     obj = f.obj()
                     if hasattr(obj, "items") and obj.items:
                         items = [_format_section_title(str(it)) for it in obj.items]
-                    if hasattr(obj, "text") and obj.text:
-                        summary = str(obj.text).strip()[:450]
+                    if hasattr(f, "markdown") and callable(f.markdown):
+                        summary = str(f.markdown()).strip()
+                    elif hasattr(obj, "text") and obj.text:
+                        summary = str(obj.text).strip()
+                    # Strip stray HTML/XML/XBRL tags so 8-K reads cleanly for humans
+                    if summary:
+                        summary = re.sub(r"<[^>]+>", " ", summary)
+                        summary = re.sub(r"&nbsp;|&#160;", " ", summary)
+                        summary = re.sub(r"\n{3,}", "\n\n", summary)[:4000]
                 except Exception:
                     pass
                 events.append(MaterialEventItem(
@@ -993,3 +1047,194 @@ def search_company_filing(ticker: str, payload: FilingSearchRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+_non_recurring_cache: Dict[str, NonRecurringResponse] = {}
+_seasonality_cache: Dict[str, SeasonalityResponse] = {}
+
+
+@router.get("/{ticker}/non-recurring", response_model=NonRecurringResponse)
+def get_non_recurring_items(ticker: str):
+    """
+    Detect non-recurring OpEx (restructuring, impairments, legal settlements, gains/losses)
+    and separate estimated maintenance vs. growth CapEx (CapEx vs. D&A).
+    """
+    clean_ticker = ticker.upper().strip()
+    if clean_ticker in _non_recurring_cache:
+        return _non_recurring_cache[clean_ticker]
+
+    try:
+        comp = edgar.Company(clean_ticker)
+        items: List[NonRecurringItem] = []
+
+        is_stmt = comp.income_statement(periods=5)
+        cf_stmt = comp.cash_flow_statement(periods=5)
+        is_df = is_stmt.to_dataframe() if is_stmt else None
+        cf_df = cf_stmt.to_dataframe() if cf_stmt else None
+
+        meta_cols = {
+            "concept", "label", "depth", "is_abstract", "is_total", "section", "confidence",
+            "level", "abstract", "dimension", "is_breakdown", "dimension_axis", "dimension_member",
+            "dimension_member_label", "dimension_label", "balance", "weight", "preferred_sign",
+            "parent_concept", "parent_abstract_concept",
+        }
+
+        one_off_keywords = (
+            "restructuring", "impairment", "goodwillimpairment", "litigation",
+            "settlement", "gainlossonsale", "discontinuedoperations", "severance"
+        )
+        if is_df is not None and not is_df.empty:
+            p_cols = sorted([c for c in is_df.columns if c not in meta_cols], reverse=True)
+            latest_p = p_cols[0] if p_cols else ""
+            for _, r in is_df.iterrows():
+                concept = str(r.get("concept", "")).lower()
+                label = str(r.get("label", concept))
+                if any(kw in concept or kw in label.lower() for kw in one_off_keywords):
+                    val = r.get(latest_p)
+                    if pd.notnull(val) and float(val) != 0:
+                        items.append(NonRecurringItem(
+                            category="OPEX_ONE_OFF",
+                            label=label,
+                            amount=float(val),
+                            period=str(latest_p),
+                            note="Flagged non-recurring operating item from US-GAAP Income Statement."
+                        ))
+
+        capex_to_da = None
+        est_maint = None
+        est_growth = None
+        if cf_df is not None and not cf_df.empty:
+            p_cols = sorted([c for c in cf_df.columns if c not in meta_cols], reverse=True)
+            latest_p = p_cols[0] if p_cols else ""
+            capex_val = 0.0
+            da_val = 0.0
+            for _, r in cf_df.iterrows():
+                c_low = str(r.get("concept", "")).lower()
+                l_low = str(r.get("label", "")).lower()
+                val = r.get(latest_p)
+                if not pd.notnull(val):
+                    continue
+                if "paymentstoacquirepropertyplantandequipment" in c_low or "capitalexpenditure" in l_low:
+                    capex_val = abs(float(val))
+                if "depreciation" in c_low or "depreciation" in l_low:
+                    da_val = max(da_val, abs(float(val)))
+            if capex_val > 0 and da_val > 0:
+                capex_to_da = round(capex_val / da_val, 2)
+                est_maint = round(min(capex_val, da_val), 2)
+                est_growth = round(max(0.0, capex_val - da_val), 2)
+                if capex_to_da >= 1.35:
+                    items.append(NonRecurringItem(
+                        category="CAPEX_SPIKE",
+                        label=f"CapEx / D&A = {capex_to_da}x (Growth/Expansion Cycle)",
+                        amount=est_growth,
+                        period=str(latest_p),
+                        note="CapEx exceeds Depreciation by >35%, indicating growth/expansion CapEx above maintenance."
+                    ))
+
+        res = NonRecurringResponse(
+            ticker=clean_ticker,
+            capex_to_da_ratio=capex_to_da,
+            estimated_maintenance_capex=est_maint,
+            estimated_growth_capex=est_growth,
+            items=items,
+        )
+        _non_recurring_cache[clean_ticker] = res
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Non-recurring analysis failed: {str(e)}")
+
+
+@router.get("/{ticker}/seasonality", response_model=SeasonalityResponse)
+def get_seasonality_analysis(ticker: str):
+    """
+    Analyze quarterly Revenue & Inventory seasonality and multi-year cyclicality (Q1-Q4).
+    """
+    clean_ticker = ticker.upper().strip()
+    if clean_ticker in _seasonality_cache:
+        return _seasonality_cache[clean_ticker]
+
+    try:
+        comp = edgar.Company(clean_ticker)
+        is_q = comp.income_statement(periods=24, annual=False)
+        bs_q = comp.balance_sheet(periods=24, annual=False)
+        is_df = is_q.to_dataframe() if is_q else None
+        bs_df = bs_q.to_dataframe() if bs_q else None
+
+        meta_cols = {
+            "concept", "label", "depth", "is_abstract", "is_total", "section", "confidence",
+            "level", "abstract", "dimension", "is_breakdown", "dimension_axis", "dimension_member",
+            "dimension_member_label", "dimension_label", "balance", "weight", "preferred_sign",
+            "parent_concept", "parent_abstract_concept",
+        }
+
+        rev_map: Dict[str, float] = {}
+        inv_map: Dict[str, float] = {}
+
+        if is_df is not None and not is_df.empty:
+            q_cols = [c for c in is_df.columns if c not in meta_cols]
+            for _, r in is_df.iterrows():
+                c_low = str(r.get("concept", "")).lower()
+                if "revenue" in c_low and not rev_map:
+                    for p in q_cols:
+                        if pd.notnull(r.get(p)):
+                            rev_map[str(p)] = float(r.get(p))
+                    break
+
+        if bs_df is not None and not bs_df.empty:
+            q_cols = [c for c in bs_df.columns if c not in meta_cols]
+            for _, r in bs_df.iterrows():
+                c_low = str(r.get("concept", "")).lower()
+                if "inventory" in c_low and not inv_map:
+                    for p in q_cols:
+                        if pd.notnull(r.get(p)):
+                            inv_map[str(p)] = float(r.get(p))
+                    break
+
+        all_periods = sorted(set(list(rev_map.keys()) + list(inv_map.keys())))
+        points: List[SeasonalityQuarterPoint] = []
+        q_buckets: Dict[str, Dict[str, List[float]]] = {
+            f"Q{q}": {"rev": [], "inv": []} for q in (1, 2, 3, 4)
+        }
+
+        for p in all_periods:
+            # Parse Q1..Q4 and year from strings like 'Q1 2025' or '2025-03-31'
+            q_match = re.search(r"Q([1-4])", p, re.IGNORECASE)
+            y_match = re.search(r"(20\d{2}|19\d{2})", p)
+            if q_match:
+                fq = f"Q{q_match.group(1)}"
+            else:
+                m_match = re.search(r"-(\d{2})-", p)
+                month = int(m_match.group(1)) if m_match else 3
+                fq = f"Q{((month - 1) // 3) + 1}"
+            fy = y_match.group(1) if y_match else p[:4]
+
+            rv = rev_map.get(p)
+            iv = inv_map.get(p)
+            points.append(SeasonalityQuarterPoint(
+                period=p,
+                fiscal_quarter=fq,
+                fiscal_year=fy,
+                revenue=rv,
+                inventory=iv,
+            ))
+            if rv is not None:
+                q_buckets[fq]["rev"].append(rv)
+            if iv is not None:
+                q_buckets[fq]["inv"].append(iv)
+
+        quarter_averages: Dict[str, Dict[str, Optional[float]]] = {}
+        for fq, vals in q_buckets.items():
+            quarter_averages[fq] = {
+                "avg_revenue": round(sum(vals["rev"]) / len(vals["rev"]), 2) if vals["rev"] else None,
+                "avg_inventory": round(sum(vals["inv"]) / len(vals["inv"]), 2) if vals["inv"] else None,
+            }
+
+        res = SeasonalityResponse(
+            ticker=clean_ticker,
+            points=points,
+            quarter_averages=quarter_averages,
+        )
+        _seasonality_cache[clean_ticker] = res
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Seasonality analysis failed: {str(e)}")

@@ -57,6 +57,9 @@ class ScreenerStockItem(BaseModel):
     epv_margin_of_safety: Optional[float] = Field(default=None, description="Margin of safety based on EPV vs price")
     traffic_light: Optional[str] = Field(default="YELLOW", description="Solvency & safety rating: GREEN, YELLOW, RED")
     wc_anomaly: Optional[str] = Field(default="NORMAL", description="Working capital divergence flag")
+    fcff_ttm: Optional[float] = Field(default=None, description="Free Cash Flow to Firm (TTM)")
+    mc_to_fcff_ttm: Optional[float] = Field(default=None, description="Market Cap / FCFF TTM (payback years)")
+    mc_to_fcff_5y_avg: Optional[float] = Field(default=None, description="Market Cap / 5Y Avg FCFF (payback years)")
 
 class ScreenerResultsResponse(BaseModel):
     """Container response for screener output."""

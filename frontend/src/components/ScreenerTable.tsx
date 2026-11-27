@@ -62,6 +62,8 @@ export const ScreenerTable: React.FC<ScreenerTableProps> = ({
             <th className="py-1 px-2 border-r border-terminal-border hidden sm:table-cell w-28">SECTOR</th>
             <th className="py-1 px-2 border-r border-terminal-border text-right w-20">PRICE</th>
             <th className="py-1 px-2 border-r border-terminal-border text-right w-24">MKT CAP</th>
+            <th className="py-1 px-2 border-r border-terminal-border text-right w-20 text-amber-300" title="Market Cap / TTM FCFF (Years to Payback)">MC/FCFF</th>
+            <th className="py-1 px-2 border-r border-terminal-border text-right hidden md:table-cell w-20 text-amber-300" title="Market Cap / 5Y Avg FCFF (Years to Payback)">MC/FCFF 5Y</th>
             <th className="py-1 px-2 border-r border-terminal-border text-right hidden md:table-cell w-24">EV</th>
             <th className="py-1 px-2 border-r border-terminal-border text-right hidden lg:table-cell w-24">EBIT</th>
             <th className="py-1 px-2 border-r border-terminal-border text-right w-20 text-terminal-green">EY (EBIT/EV)</th>
@@ -114,6 +116,16 @@ export const ScreenerTable: React.FC<ScreenerTableProps> = ({
                 {/* Market Cap */}
                 <td className="py-1 px-2 border-r border-terminal-border/50 text-right text-terminal-muted">
                   {formatCurrencyCompact(row.market_cap)}
+                </td>
+
+                {/* Market Cap / FCFF TTM Payback */}
+                <td className="py-1 px-2 border-r border-terminal-border/50 text-right text-amber-300 font-semibold">
+                  {row.mc_to_fcff_ttm != null ? `${row.mc_to_fcff_ttm.toFixed(1)}x` : '—'}
+                </td>
+
+                {/* Market Cap / FCFF 5Y Avg Payback */}
+                <td className="py-1 px-2 border-r border-terminal-border/50 text-right text-amber-300/80 hidden md:table-cell">
+                  {row.mc_to_fcff_5y_avg != null ? `${row.mc_to_fcff_5y_avg.toFixed(1)}x` : '—'}
                 </td>
 
                 {/* EV */}

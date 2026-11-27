@@ -5,6 +5,7 @@ import { ScreenerTable } from './components/ScreenerTable';
 import { CompanyDrawer } from './components/CompanyDrawer';
 import { AuthModal } from './components/AuthModal';
 import { SuperinvestorsView } from './components/SuperinvestorsView';
+import { MethodologyView } from './components/MethodologyView';
 import { StockItem, ScreenerResponse } from './types';
 
 export const App: React.FC = () => {
@@ -12,7 +13,7 @@ export const App: React.FC = () => {
   const [source, setSource] = useState<string>('INIT');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'SCREENER' | 'SUPERINVESTORS'>('SCREENER');
+  const [activeView, setActiveView] = useState<'SCREENER' | 'SUPERINVESTORS' | 'METHODOLOGY'>('SCREENER');
 
   // Authentication State
   const [user, setUser] = useState<any>(() => {
@@ -246,6 +247,16 @@ export const App: React.FC = () => {
         >
           SUPERINVESTORS (13F)
         </button>
+        <button
+          onClick={() => setActiveView('METHODOLOGY')}
+          className={`px-3 py-1 rounded-t font-bold transition-colors ${
+            activeView === 'METHODOLOGY'
+              ? 'bg-terminal-bg text-terminal-amber border-t-2 border-terminal-amber'
+              : 'text-terminal-muted hover:text-terminal-text'
+          }`}
+        >
+          METHODOLOGY &amp; FORMULAS
+        </button>
       </div>
 
       {activeView === 'SCREENER' ? (
@@ -282,13 +293,17 @@ export const App: React.FC = () => {
             />
           </main>
         </>
-      ) : (
+      ) : activeView === 'SUPERINVESTORS' ? (
         <main className="flex-1 flex overflow-hidden relative">
           <SuperinvestorsView onSelectTicker={(t) => setSelectedTicker(t)} />
           <CompanyDrawer
             ticker={selectedTicker}
             onClose={() => setSelectedTicker(null)}
           />
+        </main>
+      ) : (
+        <main className="flex-1 flex overflow-hidden relative">
+          <MethodologyView />
         </main>
       )}
 

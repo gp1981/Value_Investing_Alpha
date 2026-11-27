@@ -51,6 +51,18 @@ class SafetyDetails(BaseModel):
     revenue_zscore_label: str = Field(..., description="Outlier label: High, Normal, Low, or N/A")
     wc_anomaly_signal: str = Field(..., description="Working capital divergence flag")
 
+class HorizonMetric(BaseModel):
+    """Multi-horizon performance, TRS, ROIC, Revenue Growth, and FCFF Payback."""
+    horizon: str = Field(..., description="TTM, 3Y, 5Y, or 10Y")
+    price_return_pct: Optional[float] = Field(default=None, description="Share price appreciation (%)")
+    dividend_yield_pct: Optional[float] = Field(default=None, description="Cumulative dividend return over period (%)")
+    total_return_pct: Optional[float] = Field(default=None, description="Total Return to Shareholders = Price Return + Dividends (%)")
+    roic_pct: Optional[float] = Field(default=None, description="After-tax EBIT / (Inventory + AR - AP + Net Fixed Assets) (%)")
+    revenue_cagr_pct: Optional[float] = Field(default=None, description="Annualized revenue growth CAGR (%)")
+    fcff: Optional[float] = Field(default=None, description="Free Cash Flow to Firm (average over horizon)")
+    mc_to_fcff: Optional[float] = Field(default=None, description="Market Cap / FCFF payback years")
+
+
 class CompanyDetailResponse(BaseModel):
     """Unified comprehensive financial profile for a ticker."""
     ticker: str = Field(..., description="Ticker symbol")
@@ -67,6 +79,12 @@ class CompanyDetailResponse(BaseModel):
     safety: SafetyDetails
     financial_statement: Dict[str, Any] = Field(..., description="Raw XBRL line items extracted from SEC filings")
     filings: List[SECFilingItem] = Field(default_factory=list, description="Recent regulatory SEC filings (10-K, 10-Q, 8-K)")
+    data_source: str = Field(default="LIVE SEC EDGAR", description="Origin of data: LOCAL STORAGE, LIVE SEC EDGAR, or MEMORY CACHE")
+    fcff_ttm: Optional[float] = Field(default=None, description="Free Cash Flow to Firm (TTM)")
+    mc_to_fcff_ttm: Optional[float] = Field(default=None, description="Market Cap / FCFF TTM (Payback years)")
+    fcff_5y_avg: Optional[float] = Field(default=None, description="Average Annual FCFF over last 5 years")
+    mc_to_fcff_5y_avg: Optional[float] = Field(default=None, description="Market Cap / 5Y Avg FCFF (Payback years)")
+    horizon_metrics: List[HorizonMetric] = Field(default_factory=list, description="TTM, 3Y, 5Y, 10Y TRS, ROIC, and Revenue Growth")
 
 class StatementRow(BaseModel):
     """Line item in a multi-period structured financial statement."""
@@ -83,12 +101,17 @@ class StatementReport(BaseModel):
     rows: List[StatementRow] = Field(default_factory=list, description="Ordered statement line items")
 
 class CompanyStatementsResponse(BaseModel):
-    """Complete multi-period financial statements (BS, IS, CF)."""
+    """Complete multi-period financial statements (BS, IS, CF) up to 10Y annual + quarterly + per-share shares."""
     ticker: str = Field(..., description="Ticker symbol")
     company_name: str = Field(..., description="Reporting entity name")
-    balance_sheet: Optional[StatementReport] = Field(default=None, description="Multi-period Balance Sheet")
-    income_statement: Optional[StatementReport] = Field(default=None, description="Multi-period Income Statement")
-    cash_flow: Optional[StatementReport] = Field(default=None, description="Multi-period Statement of Cash Flows")
+    balance_sheet: Optional[StatementReport] = Field(default=None, description="Multi-period Annual Balance Sheet")
+    income_statement: Optional[StatementReport] = Field(default=None, description="Multi-period Annual Income Statement")
+    cash_flow: Optional[StatementReport] = Field(default=None, description="Multi-period Annual Cash Flow Statement")
+    quarterly_balance_sheet: Optional[StatementReport] = Field(default=None, description="Quarterly Balance Sheet")
+    quarterly_income_statement: Optional[StatementReport] = Field(default=None, description="Quarterly Income Statement")
+    quarterly_cash_flow: Optional[StatementReport] = Field(default=None, description="Quarterly Cash Flow Statement")
+    shares_by_period: Dict[str, float] = Field(default_factory=dict, description="Diluted/floating shares per period for $/share toggle")
+    latest_floating_shares: Optional[float] = Field(default=None, description="Latest floating/diluted shares for TTM $/share")
 
 class FilingSectionItem(BaseModel):
     """Section bookmark with identifier and human-readable description."""
@@ -213,3 +236,37 @@ class FilingSearchResponse(BaseModel):
     query: str
     total_hits: int
     hits: List[FilingSearchHit] = Field(default_factory=list)
+
+
+class NonRecurringItem(BaseModel):
+    """Detected non-recurring CapEx or OpEx item from XBRL & footnotes."""
+    category: str = Field(..., description="OPEX_ONE_OFF or CAPEX_SPIKE")
+    label: str
+    amount: Optional[float] = None
+    period: str = ""
+    note: str = ""
+
+
+class NonRecurringResponse(BaseModel):
+    """Non-recurring CapEx & OpEx analysis for normalized valuation."""
+    ticker: str
+    capex_to_da_ratio: Optional[float] = None
+    estimated_maintenance_capex: Optional[float] = None
+    estimated_growth_capex: Optional[float] = None
+    items: List[NonRecurringItem] = Field(default_factory=list)
+
+
+class SeasonalityQuarterPoint(BaseModel):
+    """Quarterly revenue & inventory data point for seasonality/cyclicality."""
+    period: str
+    fiscal_quarter: str = Field(..., description="Q1, Q2, Q3, or Q4")
+    fiscal_year: str
+    revenue: Optional[float] = None
+    inventory: Optional[float] = None
+
+
+class SeasonalityResponse(BaseModel):
+    """Quarterly revenue & inventory seasonality and multi-year cyclicality."""
+    ticker: str
+    points: List[SeasonalityQuarterPoint] = Field(default_factory=list)
+    quarter_averages: Dict[str, Dict[str, Optional[float]]] = Field(default_factory=dict)

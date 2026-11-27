@@ -100,18 +100,16 @@ class SECProvider:
         if not os.path.exists(self.data_path):
             return False
         # Check submissions subdirectory first
-        subs_dir = os.path.join(self.data_path, "submissions")
-        if os.path.exists(subs_dir):
-            try:
-                return len(os.listdir(subs_dir)) > 0
-            except Exception:
-                pass
-        # Fallback check on root data directory
-        try:
-            items = os.listdir(self.data_path)
-            return len(items) > 0
-        except Exception:
-            return False
+        # Check standard edgartools bulk directories; ignore _tcache / .migrations
+        for subdir in ("submissions", "companyfacts"):
+            target_dir = os.path.join(self.data_path, subdir)
+            if os.path.exists(target_dir):
+                try:
+                    if len(os.listdir(target_dir)) > 0:
+                        return True
+                except Exception:
+                    pass
+        return False
 
     def sync_storage(self):
         """Bulk download EDGAR data to the configured local storage directory."""

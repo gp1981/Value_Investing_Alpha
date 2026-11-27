@@ -24,6 +24,11 @@ Chunk 8: SEC Filing Reader & Redline Table Rendering      [COMPLETED]
 Chunk 9: Stage 2 - Superinvestors (13F) & Form 4 Radar    [COMPLETED]
 Chunk 10: Stage 2 - Form 8-K, DEF 14A & Full-Text Search  [COMPLETED]
 Chunk 11: Mac/Windows README, Docs Audit & Final Commit   [COMPLETED]
+Chunk 12: Live SEC Fallback, UX Telemetry & 8-K/Proxy Fix [COMPLETED]
+Chunk 13: FCFF Payback, TRS, Multi-Horizon ROIC & Growth  [COMPLETED]
+Chunk 14: 10Y Quarterly/Annual Statements & Per-Share Mode  [COMPLETED]
+Chunk 15: Non-Recurring CapEx/OpEx, Seasonality & Formulas  [COMPLETED]
+Chunk 16: Guru_Watcher Integration & Monetization Launch  [PENDING]
 ```
 
 ---
@@ -161,3 +166,45 @@ Chunk 11: Mac/Windows README, Docs Audit & Final Commit   [COMPLETED]
 - [x] Update `README.md` with full Mac & Windows local installation, T3 vs live SEC mode, and troubleshooting.
 - [x] Update `docs/ARCHITECTURE.md` and `docs/CLOUD_RUN_HOSTING_GUIDE.md` for canonical storage and Stage 2 modules.
 - [x] Update `docs/LOGS/SESSION_LOG.md`, run full `pytest` + `npm run build`, and commit cleanly.
+
+---
+
+### Chunk 12: Live SEC Fallback, UX Telemetry & 8-K/Proxy Fix (Completed)
+
+- [x] Fix `CompanyDrawer.tsx` loading banner: replace `SYNCING EDGAR & T3 STORAGE...` with `LINKING EDGAR & LOCAL STORAGE...` / live SEC vs local storage indicator.
+- [x] Fix `SECProvider.is_storage_populated()` in `src/data/sec_provider.py`: only return `True` when `submissions/` or `companyfacts/` actually contain `CIK*.json` files (not `_tcache`), enabling live SEC HTTP fetching when external T3 storage is disconnected.
+- [x] Add explicit data source indicator (`LOCAL STORAGE` vs `LIVE SEC EDGAR` vs `MEMORY CACHE`), progress feedback, and a **RE-SYNC SEC** button in `CompanyDrawer.tsx`.
+- [x] Fix `8-K & Proxy` tab: clean XML/HTML tags from 8-K text using `target.markdown()` + regex sanitizer, and separate 8-K Events from DEF 14A Proxy with selectable 8-K items.
+
+---
+
+### Chunk 13: FCFF Payback, TRS, Multi-Horizon ROIC & Growth (Completed)
+
+- [x] Add `Market Cap / FCFF (TTM)` and `Market Cap / FCFF (5Y Avg)` payback columns to `ScreenerTable.tsx` & `src/api/routes/screener.py` (using `FCFF = CFO - Interest*(1 - TaxRate) - CapEx` when FCF is absent, with effective tax rate `IncomeTax / PretaxIncome` clamped `[0, 0.35]` and `0.25` fallback).
+- [x] Expand `VALUATION // OVERVIEW` in `CompanyDrawer.tsx` with a **Multi-Horizon Performance & Capital Efficiency** matrix (`TTM`, `3Y`, `5Y`, `10Y`):
+  - **Total Return to Shareholders (TRS %)** broken down into **Price Appreciation (%)** + **Cumulative Dividend Yield (%)** from `yfinance` history & dividends.
+  - **ROIC (%)** = `EBIT * (1 - TaxRate) / (Inventory + Receivables - Payables + Net Fixed Assets)`.
+  - **Revenue Growth (CAGR %)** over each horizon.
+
+---
+
+### Chunk 14: 10Y Quarterly/Annual Statements & Per-Share Mode (Completed)
+
+- [x] Upgrade `GET /api/company/{ticker}/statements` to extract up to **10 years** of annual (`10-K`) and quarterly (`10-Q`) statements, with expandable year/quarter views.
+- [x] Add **$ vs $/Share** toggle next to `FORMAT: COMPACT/EXACT` in `FINANCIALS (MULTI-YEAR)`, dividing TTM by latest floating/diluted shares (`yfinance` / latest filing) and historical fiscal years by period-end shares.
+- [x] Enable smooth horizontal scrolling.
+
+---
+
+### Chunk 15: Non-Recurring CapEx/OpEx, Seasonality & Formulas Page (Completed)
+
+- [x] **Non-Recurring CapEx & OpEx Detector**: Backend endpoint `GET /api/company/{ticker}/non-recurring` scanning XBRL tags (`RestructuringCharges`, `AssetImpairmentCharges`, `GainLossOnSaleOfBusiness`, CapEx vs D&A growth spikes).
+- [x] **Seasonality & Cyclicality Tab**: Backend endpoint `GET /api/company/{ticker}/seasonality` + `SEASONALITY & CAPEX` drawer tab visualizing quarterly Revenue and Inventory across Q1–Q4.
+- [x] **In-App Formulas & Methodology Page**: Top-level `METHODOLOGY & FORMULAS` tab rendering every formula cleanly inside the terminal.
+
+---
+
+### Chunk 16: `Guru_Watcher` Integration & Monetization Launch (Pending)
+
+- [ ] Copy/link `Guru_Watcher` repository into workspace and build `src/api/routes/international_gurus.py` adapter normalizing Turkey (KAP) & India (BSE/NSE) superinvestor trades into `SuperinvestorsView.tsx` (pre-13F advantage).
+- [ ] Update `docs/MONETIZATION_AND_GROWTH_STRATEGY.md` (consider adding to `.gitignore` before commercial launch) and implement Stripe + AI Filing Essay generator in Stage 3.

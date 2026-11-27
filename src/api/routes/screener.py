@@ -56,6 +56,27 @@ def _df_row_to_stock_item(row: dict, rank: int) -> ScreenerStockItem:
         except (ValueError, TypeError):
             sic = None
 
+    # FCFF TTM & Market Cap / FCFF Payback ratios
+    # FCFF = CFO - Interest*(1 - TaxRate) - CapEx (when FCF not directly reported)
+    ocf = float(row.get("operating_cash_flow", 0.0) or 0.0)
+    capex = float(row.get("capex", 0.0) or 0.0)
+    interest_exp = float(row.get("interest_expense_ttm", 0.0) or 0.0)
+    tax_exp = float(row.get("income_tax_expense_ttm", 0.0) or 0.0)
+    pretax = ebit - interest_exp
+    eff_tax = max(0.0, min(0.35, tax_exp / pretax)) if pretax > 0 and tax_exp > 0 else 0.25
+
+    raw_fcf = float(row.get("free_cash_flow", 0.0) or 0.0)
+    if ocf != 0:
+        fcff_ttm = ocf - (interest_exp * (1.0 - eff_tax)) - abs(capex)
+    elif raw_fcf != 0:
+        fcff_ttm = raw_fcf - (interest_exp * (1.0 - eff_tax))
+    else:
+        fcff_ttm = 0.0
+
+    mc_to_fcff_ttm = round(market_cap / fcff_ttm, 1) if fcff_ttm > 0 and market_cap > 0 else None
+    raw_fcff_5y = float(row.get("fcff_5y_avg", 0.0) or 0.0)
+    mc_to_fcff_5y_avg = round(market_cap / raw_fcff_5y, 1) if raw_fcff_5y > 0 and market_cap > 0 else None
+
     return ScreenerStockItem(
         rank=rank,
         ticker=str(row.get("ticker", "UNKNOWN")),
@@ -73,7 +94,10 @@ def _df_row_to_stock_item(row: dict, rank: int) -> ScreenerStockItem:
         epv_per_share=round(epv_per_share, 2),
         epv_margin_of_safety=round(epv_mos, 4),
         traffic_light=str(row.get("traffic_light", "YELLOW")),
-        wc_anomaly=str(row.get("wc_anomaly_signal", "NORMAL"))
+        wc_anomaly=str(row.get("wc_anomaly_signal", "NORMAL")),
+        fcff_ttm=round(fcff_ttm, 2) if fcff_ttm != 0 else None,
+        mc_to_fcff_ttm=mc_to_fcff_ttm,
+        mc_to_fcff_5y_avg=mc_to_fcff_5y_avg,
     )
 
 def _get_fallback_sample_data() -> List[dict]:

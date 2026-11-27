@@ -164,3 +164,33 @@ def test_superinvestors_list():
     assert len(investors) >= 10
     ciks = [i["cik"] for i in investors]
     assert "0001067983" in ciks  # Berkshire Hathaway / Warren Buffett
+
+
+def test_is_storage_populated_ignores_tcache(tmp_path):
+    from src.data.sec_provider import SECProvider
+    data_dir = tmp_path / "data"
+    (data_dir / "_tcache").mkdir(parents=True)
+    (data_dir / "_tcache" / "dummy.db").write_text("x")
+    sp = SECProvider(storage_dir=str(tmp_path))
+    assert sp.is_storage_populated() is False
+
+
+def test_fcff_and_roic_horizon_computation():
+    from src.engine.horizon_metrics import compute_company_horizon_metrics
+    fs_dict = {
+        "ebit": 1000.0,
+        "operating_cash_flow": 1200.0,
+        "capex": 200.0,
+        "interest_expense_ttm": 50.0,
+        "income_tax_expense_ttm": 200.0,
+        "inventory": 300.0,
+        "accounts_receivable": 200.0,
+        "accounts_payable": 100.0,
+        "net_fixed_assets": 1600.0,
+    }
+    fcff_ttm, mc_to_fcff_ttm, _, _, horizons = compute_company_horizon_metrics("AAPL_TEST_OFFLINE", fs_dict, 10000.0)
+    assert fcff_ttm is not None and fcff_ttm > 0
+    assert mc_to_fcff_ttm is not None and mc_to_fcff_ttm > 0
+    assert len(horizons) == 4
+    assert horizons[0]["horizon"] == "TTM"
+    assert horizons[0]["roic_pct"] is not None and horizons[0]["roic_pct"] > 0

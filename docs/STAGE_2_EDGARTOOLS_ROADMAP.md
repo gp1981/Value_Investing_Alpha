@@ -1,6 +1,6 @@
 # Stage 2 Extensibility Roadmap — Advanced SEC edgartools Features
 
-> **Architecture & Implementation Plan for Post-MVP Features**  
+> **Architecture & Implementation Plan for Post-MVP Features**
 > Direct integration with [dgunning/edgartools](https://github.com/dgunning/edgartools) capabilities for deep institutional ownership, insider trading, material event monitoring, and governance analysis.
 
 ---
@@ -31,6 +31,7 @@ While the MVP focuses on core valuation frameworks (**Magic Formula**, **Bruce G
 Tracking what elite capital allocators (e.g., Warren Buffett, Li Lu, Mohnish Pabrai, Seth Klarman) are buying provides a rich source of validated investment ideas.
 
 **edgartools API Integration**:
+
 ```python
 import edgar
 
@@ -45,6 +46,7 @@ holdings_df = holdings.holdings_data
 ```
 
 **Terminal UI Component**:
+
 - New **"SUPERINVESTORS"** tab in the top navigation.
 - Table showing: Portfolio weighting, new additions, position increases, trimmed positions, and complete liquidations.
 
@@ -57,6 +59,7 @@ holdings_df = holdings.holdings_data
 Cluster purchases (3+ executives or directors buying stock with personal cash in a 30-day window) indicate high insider conviction.
 
 **edgartools API Integration**:
+
 ```python
 import edgar
 
@@ -73,6 +76,7 @@ for filing in form4_filings:
 ```
 
 **Terminal UI Component**:
+
 - In the Company Detail Drawer: **"INSIDER ACTIVITY"** panel.
 - Badge indicators: "CLUSTER BUYING DETECTED" (highlighted in bright terminal green).
 
@@ -84,6 +88,7 @@ for filing in form4_filings:
 Companies must file Form 8-K within 4 business days of major corporate events. Value investors need instant notifications of CEO resignations, debt covenant breaches, or material contract cancellations.
 
 **edgartools API Integration**:
+
 ```python
 import edgar
 
@@ -97,6 +102,7 @@ for filing in eight_k_filings:
 ```
 
 **Terminal UI Component**:
+
 - Header alert ticker: scrolling feed of 8-K filings for currently tracked universe.
 - Classification tags: *Item 1.01 (Agreements)*, *Item 2.01 (Acquisitions)*, *Item 5.02 (Executive Changes)*.
 
@@ -109,6 +115,7 @@ Charlie Munger frequently stressed: *"Show me the incentive and I will show you 
 We must evaluate whether management incentives are tied to return on capital (ROC) or merely revenue growth through dilution.
 
 **edgartools API Integration**:
+
 ```python
 import edgar
 
@@ -121,6 +128,7 @@ exec_comp_df = proxy_data.executive_compensation
 ```
 
 **Terminal UI Component**:
+
 - Detail Drawer Section: **"MANAGEMENT & INCENTIVES"**.
 - Displays CEO/CFO Total Compensation, Stock Option Grants, and Performance Hurdles.
 
@@ -132,6 +140,7 @@ exec_comp_df = proxy_data.executive_compensation
 The most critical risks are buried in the footnotes of financial statements (operating leases, legal liabilities, pension underfunding, off-balance sheet obligations).
 
 **edgartools API Integration**:
+
 ```python
 import edgar
 
@@ -144,18 +153,19 @@ results = ten_k.search("material weakness in internal control", section="Item 8"
 ```
 
 **Terminal UI Component**:
+
 - Search bar inside the company drawer allowing direct full-text query of the 10-K with instant sentence highlight.
 
 ---
 
 ## 3. Implementation Phasing
 
-| Phase | Target Module | Endpoints to Add | UI Panel |
-| :--- | :--- | :--- | :--- |
-| **Stage 2.1** | Form 4 Insider Radar | `GET /api/company/{ticker}/insider-trades` | Drawer Tab: Insider Purchases & Sales |
-| **Stage 2.2** | Form 13F Superinvestors | `GET /api/superinvestors/all`, `GET /api/superinvestors/{cik}` | New Top Navigation: 13F Portfolios |
-| **Stage 2.3** | Form 8-K Material Feeds | `GET /api/company/{ticker}/material-events` | Header Warning Ticker |
-| **Stage 2.4** | DEF 14A Proxy Alignment | `GET /api/company/{ticker}/governance` | Drawer Tab: Executive Compensation |
-| **Stage 2.5** | Footnote Full-Text Search | `POST /api/company/{ticker}/search-filing` | Interactive Search Modal |
+| Phase               | Target Module             | Endpoints to Add                                                   | UI Panel                              |
+| :------------------ | :------------------------ | :----------------------------------------------------------------- | :------------------------------------ |
+| **Stage 2.1** | Form 4 Insider Radar      | `GET /api/company/{ticker}/insider-trades`                       | Drawer Tab: Insider Purchases & Sales |
+| **Stage 2.2** | Form 13F Superinvestors   | `GET /api/superinvestors/all`, `GET /api/superinvestors/{cik}` | New Top Navigation: 13F Portfolios    |
+| **Stage 2.3** | Form 8-K Material Feeds   | `GET /api/company/{ticker}/material-events`                      | Header Warning Ticker                 |
+| **Stage 2.4** | DEF 14A Proxy Alignment   | `GET /api/company/{ticker}/governance`                           | Drawer Tab: Executive Compensation    |
+| **Stage 2.5** | Footnote Full-Text Search | `POST /api/company/{ticker}/search-filing`                       | Interactive Search Modal              |
 
 All models will reuse our existing caching pipeline, `EDGAR_LOCAL_DATA_DIR` storage guardrails, and asynchronous FastAPI structures.

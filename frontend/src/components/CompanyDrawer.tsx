@@ -22,7 +22,9 @@ import {
   Bookmark,
   Bell,
   Scale,
-  UserCheck
+  UserCheck,
+  RefreshCw,
+  BarChart3
 } from 'lucide-react';
 import {
   CompanyDetailResponse,
@@ -35,7 +37,9 @@ import {
   InsiderRadarResponse,
   MaterialEventsResponse,
   GovernanceResponse,
-  FilingSearchResponse
+  FilingSearchResponse,
+  NonRecurringResponse,
+  SeasonalityResponse
 } from '../types';
 import { FilingContentRenderer } from './FilingContentRenderer';
 
@@ -68,7 +72,7 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
-  const [activeMainTab, setActiveMainTab] = useState<'OVERVIEW' | 'STATEMENTS' | 'FILING_VIEWER' | 'FILING_DIFF' | 'INSIDERS' | 'EVENTS_GOV'>('OVERVIEW');
+  const [activeMainTab, setActiveMainTab] = useState<'OVERVIEW' | 'STATEMENTS' | 'FILING_VIEWER' | 'FILING_DIFF' | 'INSIDERS' | 'EVENTS_GOV' | 'SEASONALITY'>('OVERVIEW');
 
   // Manual Width Resizing State (default to 50% of webpage width)
   const [drawerWidth, setDrawerWidth] = useState<number>(() => {
@@ -121,6 +125,13 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
   const [isStatementsLoading, setIsStatementsLoading] = useState(false);
   const [activeStatementTab, setActiveStatementTab] = useState<'IS' | 'BS' | 'CF'>('IS');
   const [showFullNumbers, setShowFullNumbers] = useState<boolean>(false);
+  const [perShareMode, setPerShareMode] = useState<boolean>(false);
+  const [statementViewMode, setStatementViewMode] = useState<'ANNUAL' | 'QUARTERLY'>('ANNUAL');
+
+  // Seasonality & Non-Recurring State
+  const [seasonalityData, setSeasonalityData] = useState<SeasonalityResponse | null>(null);
+  const [nonRecurringData, setNonRecurringData] = useState<NonRecurringResponse | null>(null);
+  const [isSeasonalityLoading, setIsSeasonalityLoading] = useState<boolean>(false);
 
   // In-Platform Filing Viewer State
   const [edgarForms, setEdgarForms] = useState<EdgarFormItem[]>([]);
@@ -169,15 +180,17 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
       setEventsData(null);
       setGovernanceData(null);
       setFullTextResults(null);
+      setSeasonalityData(null);
+      setNonRecurringData(null);
       setReaderFilings([]);
       return;
     }
 
-    const fetchDetails = async () => {
+    const fetchDetails = async (refresh = false) => {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/company/${ticker}`);
+        const res = await fetch(`/api/company/${ticker}${refresh ? '?refresh=true' : ''}`);
         if (!res.ok) {
           const errJson = await res.json().catch(() => ({}));
           throw new Error(errJson.detail || `Failed to load details for ${ticker}`);
@@ -338,6 +351,23 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
     }
   }, [activeMainTab, ticker, selectedAccession, selectedSection]);
 
+  // Load Seasonality & Non-Recurring CapEx/OpEx when entering SEASONALITY tab
+  useEffect(() => {
+    if (activeMainTab === 'SEASONALITY' && ticker && !seasonalityData && !isSeasonalityLoading) {
+      setIsSeasonalityLoading(true);
+      Promise.all([
+        fetch(`/api/company/${ticker}/seasonality`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`/api/company/${ticker}/non-recurring`).then((r) => (r.ok ? r.json() : null)),
+      ])
+        .then(([sData, nrData]) => {
+          if (sData) setSeasonalityData(sData);
+          if (nrData) setNonRecurringData(nrData);
+        })
+        .catch(() => {})
+        .finally(() => setIsSeasonalityLoading(false));
+    }
+  }, [activeMainTab, ticker, seasonalityData, isSeasonalityLoading]);
+
   // Execute Redline Diff
   const runRedlineDiff = async () => {
     if (!ticker || !diffAcc1 || !diffAcc2) return;
@@ -388,11 +418,19 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
     return f.form === filingFilter;
   });
 
-  // Current Statement Table to show
+  // Current Statement Table to show (Annual 10Y vs Quarterly)
   const currentStatementReport: StatementReport | null | undefined =
-    activeStatementTab === 'IS' ? statements?.income_statement :
-    activeStatementTab === 'BS' ? statements?.balance_sheet :
-    statements?.cash_flow;
+    statementViewMode === 'ANNUAL'
+      ? activeStatementTab === 'IS'
+        ? statements?.income_statement
+        : activeStatementTab === 'BS'
+        ? statements?.balance_sheet
+        : statements?.cash_flow
+      : activeStatementTab === 'IS'
+      ? statements?.quarterly_income_statement
+      : activeStatementTab === 'BS'
+      ? statements?.quarterly_balance_sheet
+      : statements?.quarterly_cash_flow;
 
   return (
     <div
@@ -407,11 +445,25 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
       />
       {/* 1. Master Title Header */}
       <div className="border-b border-terminal-border p-2.5 flex items-center justify-between bg-terminal-card">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
           <span className="text-base font-bold text-terminal-green tracking-wider">{ticker}</span>
-          <span className="text-terminal-muted truncate max-w-[280px] sm:max-w-[400px]">
-            {data?.company_name || (isLoading ? 'SYNCING EDGAR & T3 STORAGE...' : 'TERMINAL WORKSPACE')}
+          <span className="text-terminal-muted truncate max-w-[240px] sm:max-w-[360px]">
+            {data?.company_name || (isLoading ? 'LINKING EDGAR & LOCAL STORAGE...' : 'TERMINAL WORKSPACE')}
           </span>
+          {data?.data_source && (
+            <span
+              className={`hidden md:inline-block px-1.5 py-0.5 rounded text-[9.5px] font-bold border ${
+                data.data_source === 'LOCAL STORAGE'
+                  ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/50'
+                  : data.data_source === 'MEMORY CACHE'
+                  ? 'bg-cyan-950/60 text-cyan-300 border-cyan-700/50'
+                  : 'bg-amber-950/60 text-amber-300 border-amber-700/50'
+              }`}
+              title="Data Source"
+            >
+              {data.data_source}
+            </span>
+          )}
           {data?.sic_code && (
             <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-terminal-border text-[10px] text-terminal-muted">
               SIC {data.sic_code}
@@ -419,6 +471,35 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
           )}
         </div>
         <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => {
+              if (!ticker) return;
+              setIsLoading(true);
+              setError(null);
+              fetch(`/api/company/${ticker}?refresh=true`)
+                .then(async (res) => {
+                  if (!res.ok) {
+                    const errJson = await res.json().catch(() => ({}));
+                    throw new Error(errJson.detail || `Failed to re-sync ${ticker}`);
+                  }
+                  return res.json();
+                })
+                .then((json: CompanyDetailResponse) => {
+                  setData(json);
+                  setStatements(null);
+                  setSeasonalityData(null);
+                  setNonRecurringData(null);
+                })
+                .catch((err: any) => setError(err.message))
+                .finally(() => setIsLoading(false));
+            }}
+            disabled={isLoading}
+            title="Re-fetch fresh live data from SEC EDGAR"
+            className="flex items-center gap-1 px-2 py-0.5 rounded bg-terminal-bg border border-terminal-border text-[10px] text-terminal-cyan hover:bg-terminal-border transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">RE-SYNC SEC</span>
+          </button>
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             title={isExpanded ? 'Dock to Side Panel' : 'Expand Full Workstation'}
@@ -516,6 +597,18 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
             <Bell className="w-3 h-3 text-rose-400" />
             <span>8-K &amp; PROXY</span>
           </button>
+
+          <button
+            onClick={() => setActiveMainTab('SEASONALITY')}
+            className={`px-3 py-1.5 rounded-t text-[11px] font-semibold flex items-center gap-1.5 transition-colors ${
+              activeMainTab === 'SEASONALITY'
+                ? 'bg-terminal-card text-sky-400 border-t-2 border-sky-400'
+                : 'text-terminal-muted hover:text-terminal-text hover:bg-terminal-panel'
+            }`}
+          >
+            <BarChart3 className="w-3 h-3 text-sky-400" />
+            <span>SEASONALITY &amp; CAPEX</span>
+          </button>
         </div>
       </div>
 
@@ -534,7 +627,7 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
         {activeMainTab === 'OVERVIEW' && data && (
           <div className="space-y-4">
             {/* Quick Metrics Header Pill */}
-            <div className="grid grid-cols-3 gap-2 bg-terminal-bg p-2.5 rounded border border-terminal-border text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-terminal-bg p-2.5 rounded border border-terminal-border text-center">
               <div>
                 <div className="text-[10px] text-terminal-muted">MARKET PRICE</div>
                 <div className="text-sm font-bold text-terminal-text tabular-numbers">${data.price.toFixed(2)}</div>
@@ -542,6 +635,18 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
               <div>
                 <div className="text-[10px] text-terminal-muted">MARKET CAP</div>
                 <div className="text-sm font-bold text-terminal-text tabular-numbers">{formatCurrencyCompact(data.market_cap)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-terminal-muted">MC / FCFF (TTM)</div>
+                <div className="text-sm font-bold text-amber-300 tabular-numbers">
+                  {data.mc_to_fcff_ttm != null ? `${data.mc_to_fcff_ttm.toFixed(1)}x` : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-terminal-muted">MC / FCFF (5Y)</div>
+                <div className="text-sm font-bold text-amber-300/90 tabular-numbers">
+                  {data.mc_to_fcff_5y_avg != null ? `${data.mc_to_fcff_5y_avg.toFixed(1)}x` : '—'}
+                </div>
               </div>
               <div>
                 <div className="text-[10px] text-terminal-muted">SOLVENCY</div>
@@ -560,6 +665,54 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                 </div>
               </div>
             </div>
+
+            {/* Multi-Horizon Performance, TRS, ROIC & Revenue Growth */}
+            {data.horizon_metrics && data.horizon_metrics.length > 0 && (
+              <div className="border border-terminal-border bg-terminal-card rounded p-3 space-y-2">
+                <div className="flex items-center justify-between border-b border-terminal-border pb-1">
+                  <span className="font-bold text-terminal-cyan text-[11px]">
+                    MULTI-HORIZON TRS, ROIC &amp; FCFF PAYBACK (TTM / 3Y / 5Y / 10Y)
+                  </span>
+                  <span className="text-[10px] text-terminal-muted">TRS = Price % + Div Yield %</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[10.5px] tabular-numbers border-collapse">
+                    <thead>
+                      <tr className="bg-terminal-bg border-b border-terminal-border text-terminal-muted">
+                        <th className="py-1 px-2 text-left">HORIZON</th>
+                        <th className="py-1 px-2 text-right">PRICE %</th>
+                        <th className="py-1 px-2 text-right">DIV YIELD %</th>
+                        <th className="py-1 px-2 text-right text-terminal-green">TRS %</th>
+                        <th className="py-1 px-2 text-right text-terminal-cyan">ROIC %</th>
+                        <th className="py-1 px-2 text-right">REV CAGR</th>
+                        <th className="py-1 px-2 text-right text-amber-300">MC/FCFF</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-terminal-border/30">
+                      {data.horizon_metrics.map((hm) => (
+                        <tr key={hm.horizon} className="hover:bg-terminal-bg/60">
+                          <td className="py-1 px-2 font-bold text-terminal-text">{hm.horizon}</td>
+                          <td className="py-1 px-2 text-right">{hm.price_return_pct != null ? `${hm.price_return_pct.toFixed(1)}%` : '—'}</td>
+                          <td className="py-1 px-2 text-right">{hm.dividend_yield_pct != null ? `${hm.dividend_yield_pct.toFixed(1)}%` : '—'}</td>
+                          <td className={`py-1 px-2 text-right font-bold ${(hm.total_return_pct ?? 0) >= 0 ? 'text-terminal-green' : 'text-terminal-red'}`}>
+                            {hm.total_return_pct != null ? `${hm.total_return_pct.toFixed(1)}%` : '—'}
+                          </td>
+                          <td className="py-1 px-2 text-right text-terminal-cyan font-semibold">
+                            {hm.roic_pct != null ? `${hm.roic_pct.toFixed(1)}%` : '—'}
+                          </td>
+                          <td className="py-1 px-2 text-right">
+                            {hm.revenue_cagr_pct != null ? `${hm.revenue_cagr_pct.toFixed(1)}%` : '—'}
+                          </td>
+                          <td className="py-1 px-2 text-right text-amber-300 font-semibold">
+                            {hm.mc_to_fcff != null ? `${hm.mc_to_fcff.toFixed(1)}x` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Grid 2-columns if expanded, 1-col if side panel */}
             <div className={`grid gap-4 ${isExpanded ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -883,7 +1036,29 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setStatementViewMode(statementViewMode === 'ANNUAL' ? 'QUARTERLY' : 'ANNUAL')}
+                  className={`px-2 py-1 rounded border text-[10px] font-bold transition-colors ${
+                    statementViewMode === 'QUARTERLY'
+                      ? 'bg-amber-950 text-amber-300 border-amber-600/60'
+                      : 'border-terminal-border text-terminal-muted hover:text-terminal-text hover:bg-terminal-bg'
+                  }`}
+                  title="Switch between 10Y Annual (10-K) and Quarterly (10-Q) expansion"
+                >
+                  VIEW: {statementViewMode === 'ANNUAL' ? 'ANNUAL (10Y)' : 'QUARTERLY (Q1-Q4)'}
+                </button>
+                <button
+                  onClick={() => setPerShareMode(!perShareMode)}
+                  className={`px-2 py-1 rounded border text-[10px] font-bold transition-colors ${
+                    perShareMode
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-600/60'
+                      : 'border-terminal-border text-terminal-muted hover:text-terminal-text hover:bg-terminal-bg'
+                  }`}
+                  title="Divide line items by floating / period-end diluted shares"
+                >
+                  UNIT: {perShareMode ? '$/SHARE' : 'TOTAL ($)'}
+                </button>
                 <button
                   onClick={() => setShowFullNumbers(!showFullNumbers)}
                   className="px-2 py-1 rounded border border-terminal-border text-[10px] text-terminal-muted hover:text-terminal-text hover:bg-terminal-bg"
@@ -938,8 +1113,18 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                                 {row.label}
                               </span>
                             </td>
-                            {currentStatementReport.periods.map((period) => {
-                              const val = row.values[period];
+                            {currentStatementReport.periods.map((period, pIdx) => {
+                              const rawVal = row.values[period];
+                              let val = rawVal;
+                              if (perShareMode && rawVal != null && !isHeader) {
+                                const periodShares =
+                                  (pIdx === 0 && statements?.latest_floating_shares) ||
+                                  statements?.shares_by_period?.[period] ||
+                                  statements?.latest_floating_shares ||
+                                  data?.shares_outstanding ||
+                                  null;
+                                val = periodShares && periodShares > 0 ? rawVal / periodShares : null;
+                              }
                               return (
                                 <td
                                   key={period}
@@ -947,7 +1132,15 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                                     isTotal ? 'font-bold text-terminal-text' : 'text-terminal-muted'
                                   }`}
                                 >
-                                  {isHeader ? '' : showFullNumbers ? formatCurrencyFull(val) : formatCurrencyCompact(val)}
+                                  {isHeader
+                                    ? ''
+                                    : perShareMode
+                                    ? val != null
+                                      ? `$${val.toFixed(2)}`
+                                      : '—'
+                                    : showFullNumbers
+                                    ? formatCurrencyFull(val)
+                                    : formatCurrencyCompact(val)}
                                 </td>
                               );
                             })}
@@ -1652,6 +1845,135 @@ export const CompanyDrawer: React.FC<CompanyDrawerProps> = ({ ticker, onClose })
                     </div>
                   ) : (
                     <div className="text-terminal-muted text-[11px]">No DEF 14A proxy summary available.</div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* =========================================================================
+            TAB 7: SEASONALITY, CYCLICALITY & NON-RECURRING CAPEX / OPEX
+           ========================================================================= */}
+        {activeMainTab === 'SEASONALITY' && (
+          <div className="space-y-4">
+            <div className="px-3 py-1.5 rounded bg-terminal-card/70 border border-terminal-border text-[10.5px] text-terminal-muted">
+              <span className="text-sky-400 font-bold">SEASONALITY &amp; NON-RECURRING:</span> Analyze quarterly Revenue &amp; Inventory cycles (Q1–Q4) to avoid buying cyclical peaks, and inspect one-off OpEx or CapEx/D&amp;A expansion spikes.
+            </div>
+
+            {isSeasonalityLoading ? (
+              <div className="flex flex-col items-center justify-center py-24 text-terminal-muted space-y-2">
+                <div className="animate-spin w-6 h-6 border-2 border-sky-400 border-t-transparent rounded-full" />
+                <span>ANALYZING QUARTERLY CYCLES &amp; FOOTNOTE ANOMALIES...</span>
+              </div>
+            ) : (
+              <>
+                {/* Q1-Q4 Average Seasonality Bar Chart */}
+                <div className="border border-terminal-border rounded bg-terminal-card p-3 space-y-3">
+                  <div className="font-bold text-sky-400 border-b border-terminal-border pb-1.5">
+                    QUARTERLY SEASONALITY AVERAGES (Q1 – Q4)
+                  </div>
+                  {seasonalityData && Object.keys(seasonalityData.quarter_averages).length > 0 ? (
+                    (() => {
+                      const qKeys = ['Q1', 'Q2', 'Q3', 'Q4'];
+                      const maxRev = Math.max(
+                        1,
+                        ...qKeys.map((q) => seasonalityData.quarter_averages[q]?.avg_revenue || 0)
+                      );
+                      const maxInv = Math.max(
+                        1,
+                        ...qKeys.map((q) => seasonalityData.quarter_averages[q]?.avg_inventory || 0)
+                      );
+                      return (
+                        <div className="grid grid-cols-4 gap-3">
+                          {qKeys.map((q) => {
+                            const avgRev = seasonalityData.quarter_averages[q]?.avg_revenue || 0;
+                            const avgInv = seasonalityData.quarter_averages[q]?.avg_inventory || 0;
+                            const revPct = Math.round((avgRev / maxRev) * 100);
+                            const invPct = Math.round((avgInv / maxInv) * 100);
+                            return (
+                              <div key={q} className="bg-terminal-bg p-2.5 rounded border border-terminal-border/60 space-y-2">
+                                <div className="font-bold text-terminal-text text-center">{q}</div>
+                                <div className="space-y-1">
+                                  <div className="flex justify-between text-[10px]">
+                                    <span className="text-terminal-muted">AVG REV</span>
+                                    <span className="text-terminal-green font-bold">{formatCurrencyCompact(avgRev)}</span>
+                                  </div>
+                                  <div className="w-full h-2 bg-terminal-panel rounded overflow-hidden">
+                                    <div className="h-full bg-terminal-green" style={{ width: `${revPct}%` }} />
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex justify-between text-[10px]">
+                                    <span className="text-terminal-muted">AVG INV</span>
+                                    <span className="text-sky-400 font-bold">{formatCurrencyCompact(avgInv)}</span>
+                                  </div>
+                                  <div className="w-full h-2 bg-terminal-panel rounded overflow-hidden">
+                                    <div className="h-full bg-sky-400" style={{ width: `${invPct}%` }} />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="text-terminal-muted text-[11px]">No quarterly seasonality data extracted for {ticker}.</div>
+                  )}
+                </div>
+
+                {/* Non-Recurring CapEx & OpEx Detector */}
+                <div className="border border-terminal-border rounded bg-terminal-card p-3 space-y-2.5">
+                  <div className="font-bold text-amber-300 border-b border-terminal-border pb-1.5">
+                    NON-RECURRING OPEX &amp; MAINTENANCE VS. GROWTH CAPEX
+                  </div>
+                  {nonRecurringData ? (
+                    <>
+                      <div className="grid grid-cols-3 gap-2 bg-terminal-bg p-2.5 rounded border border-terminal-border text-center">
+                        <div>
+                          <div className="text-[10px] text-terminal-muted">CAPEX / D&amp;A RATIO</div>
+                          <div className="text-sm font-bold text-amber-300">
+                            {nonRecurringData.capex_to_da_ratio != null ? `${nonRecurringData.capex_to_da_ratio}x` : '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-terminal-muted">EST. MAINTENANCE CAPEX</div>
+                          <div className="text-sm font-bold text-terminal-green">
+                            {formatCurrencyCompact(nonRecurringData.estimated_maintenance_capex)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-terminal-muted">EST. GROWTH CAPEX</div>
+                          <div className="text-sm font-bold text-terminal-cyan">
+                            {formatCurrencyCompact(nonRecurringData.estimated_growth_capex)}
+                          </div>
+                        </div>
+                      </div>
+                      {nonRecurringData.items.length === 0 ? (
+                        <div className="text-[11px] text-terminal-muted">No major non-recurring restructuring, impairment, or CapEx spike flags detected.</div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {nonRecurringData.items.map((it, idx) => (
+                            <div key={idx} className="p-2 rounded bg-terminal-bg border border-amber-700/40 flex items-center justify-between text-[11px]">
+                              <div>
+                                <span className="px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 text-[9.5px] font-bold mr-2">
+                                  {it.category}
+                                </span>
+                                <span className="text-terminal-text font-semibold">{it.label}</span>
+                                <div className="text-[10px] text-terminal-muted">{it.note}</div>
+                              </div>
+                              <div className="text-right font-bold text-amber-300 shrink-0 ml-2">
+                                {formatCurrencyCompact(it.amount)}
+                                <div className="text-[9.5px] text-terminal-muted">{it.period}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-terminal-muted text-[11px]">No non-recurring analysis available.</div>
                   )}
                 </div>
               </>

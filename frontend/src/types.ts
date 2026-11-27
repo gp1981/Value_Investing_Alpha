@@ -16,6 +16,9 @@ export interface StockItem {
   epv_margin_of_safety?: number | null;
   traffic_light: 'GREEN' | 'YELLOW' | 'RED';
   wc_anomaly: string;
+  fcff_ttm?: number | null;
+  mc_to_fcff_ttm?: number | null;
+  mc_to_fcff_5y_avg?: number | null;
 }
 
 export interface ScreenerResponse {
@@ -73,6 +76,17 @@ export interface SECFilingItem {
   interactive_url?: string | null;
 }
 
+export interface HorizonMetric {
+  horizon: string;
+  price_return_pct?: number | null;
+  dividend_yield_pct?: number | null;
+  total_return_pct?: number | null;
+  roic_pct?: number | null;
+  revenue_cagr_pct?: number | null;
+  fcff?: number | null;
+  mc_to_fcff?: number | null;
+}
+
 export interface CompanyDetailResponse {
   ticker: string;
   company_name: string;
@@ -88,6 +102,12 @@ export interface CompanyDetailResponse {
   safety: SafetyDetails;
   financial_statement: Record<string, any>;
   filings?: SECFilingItem[];
+  data_source?: string;
+  fcff_ttm?: number | null;
+  mc_to_fcff_ttm?: number | null;
+  fcff_5y_avg?: number | null;
+  mc_to_fcff_5y_avg?: number | null;
+  horizon_metrics?: HorizonMetric[];
 }
 
 export interface StatementRow {
@@ -110,6 +130,41 @@ export interface CompanyStatementsResponse {
   balance_sheet?: StatementReport | null;
   income_statement?: StatementReport | null;
   cash_flow?: StatementReport | null;
+  quarterly_balance_sheet?: StatementReport | null;
+  quarterly_income_statement?: StatementReport | null;
+  quarterly_cash_flow?: StatementReport | null;
+  shares_by_period?: Record<string, number>;
+  latest_floating_shares?: number | null;
+}
+
+export interface NonRecurringItem {
+  category: string;
+  label: string;
+  amount?: number | null;
+  period: string;
+  note: string;
+}
+
+export interface NonRecurringResponse {
+  ticker: string;
+  capex_to_da_ratio?: number | null;
+  estimated_maintenance_capex?: number | null;
+  estimated_growth_capex?: number | null;
+  items: NonRecurringItem[];
+}
+
+export interface SeasonalityQuarterPoint {
+  period: string;
+  fiscal_quarter: string;
+  fiscal_year: string;
+  revenue?: number | null;
+  inventory?: number | null;
+}
+
+export interface SeasonalityResponse {
+  ticker: string;
+  points: SeasonalityQuarterPoint[];
+  quarter_averages: Record<string, { avg_revenue?: number | null; avg_inventory?: number | null }>;
 }
 
 export interface FilingSectionItem {

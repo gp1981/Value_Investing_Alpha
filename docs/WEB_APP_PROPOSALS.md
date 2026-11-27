@@ -65,4 +65,15 @@ For a **"Bloomberg Terminal"** look with **zero cost** and **low difficulty**, I
 3.  **Logic:** It calls your existing `Screener` logic.
 4.  **Login:** Use a simple token-based login or Firebase Auth.
 
-Would you like me to create a prototype of the **FastAPI** wrapper or the **Terminal CSS** frontend?
+---
+
+## 4. Stage 3 Feature Proposals & Effort Matrix
+
+| Proposed Feature | Value Investing Benefit | Effort |
+| :--- | :--- | :--- |
+| **1. Non-Recurring CapEx / OpEx Footnote Detector** | Separates maintenance vs. growth CapEx and one-off restructuring charges from normalized EPV/FCFF. | **Medium** (XBRL + regex/LLM footnote parser) |
+| **2. Cyclicality & Seasonality Tab** | Visualizes quarterly revenue & inventory swings across 5–10 years to avoid buying cyclical peaks. | **Medium** (Quarterly XBRL + bar/range charts) |
+| **3. Interactive Methodology & Formula Explorer** | In-app reference of every formula (Magic Formula, EPV, FCFF Payback, TRS, ROIC) for full transparency. | **Low** (Dedicated UI route + Markdown/KaTeX) |
+| **4. `Guru_Watcher` International Superinvestors** | Tracks Turkey (KAP) & India (BSE/NSE) institutional/insider trades *before* quarterly US 13F deadlines. | **Medium-High** (Adapter router + normalized schema) |
+| **5. AI Filing Essay Generator & VIC-Style Thesis Hub** | Generates citation-backed 10-K/10-Q research memos & hosts peer-reviewed value investment theses. | **High** (LLM pipeline + Postgres/Firestore + moderation) |
+| **6. Portfolio Watchlist & Email/Webhook Alerts** | Alerts users on Form 4 Cluster Buys, 8-K Item 5.02 CEO exits, or EPV Margin of Safety thresholds. | **Low-Medium** (Cloud Scheduler + user watchlist DB) |
